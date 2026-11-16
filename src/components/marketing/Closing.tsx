@@ -2,16 +2,12 @@
 
 import React, { useRef } from 'react';
 import Link from 'next/link';
-import { m, useReducedMotion } from 'framer-motion';
-import DriftingBirds from '@/art/DriftingBirds';
 import WatercolorDripCanvas from '@/art/WatercolorDripCanvas';
-import WingedEnvelope from '@/art/WingedEnvelope';
 import { bloomHandlers } from '@/art/bloom';
 import { useSessionStatus } from '@/lib/use-session-status';
 
 export default function Closing() {
   const ref = useRef<HTMLElement>(null);
-  const reduce = useReducedMotion();
   const { authenticated, pipesSignedIn } = useSessionStatus();
   const isLoggedIn = authenticated || pipesSignedIn;
 
@@ -36,37 +32,6 @@ export default function Closing() {
       />
 
       <WatercolorDripCanvas containerRef={ref} />
-      <DriftingBirds />
-
-      {!reduce && (
-        <m.div
-          aria-hidden="true"
-          initial={{ opacity: 0, x: '-8%', y: 24, scale: 0.65, rotate: -6 }}
-          animate={{
-            opacity: [0, 0.92, 0.88, 0],
-            x: '108%',
-            y: -96,
-            scale: 0.95,
-            rotate: 5,
-          }}
-          transition={{
-            x: { duration: 16, repeat: Infinity, repeatDelay: 2.5, ease: 'linear' },
-            y: { duration: 16, repeat: Infinity, repeatDelay: 2.5, ease: 'easeOut' },
-            scale: { duration: 16, repeat: Infinity, repeatDelay: 2.5, ease: 'easeOut' },
-            rotate: { duration: 16, repeat: Infinity, repeatDelay: 2.5, ease: 'easeOut' },
-            opacity: {
-              duration: 16,
-              repeat: Infinity,
-              repeatDelay: 2.5,
-              times: [0, 0.12, 0.86, 1],
-              ease: 'linear',
-            },
-          }}
-          className="pointer-events-none absolute left-[4%] bottom-[24%] w-16 sm:w-24"
-        >
-          <WingedEnvelope className="w-full aspect-square" flapMs={420} />
-        </m.div>
-      )}
 
       {/* Gentle left-side reading vignette so white headline stays sharp over bright blooms */}
       <div
@@ -98,7 +63,7 @@ export default function Closing() {
         </div>
         <p className="mt-8 font-serif italic text-[15px] text-white/85 drop-shadow-[0_1px_8px_rgba(19,22,36,0.5)]">
           <span className="not-italic mr-1.5">*</span>
-          Flick your cursor or tap to drop water and pigment—watch it bloom and drip down the horizon.
+          Flick your cursor or tap to drop water and pigment—watch it bloom, mix, and drip down the horizon.
         </p>
       </div>
     </section>

@@ -22,6 +22,8 @@ interface BloomDrop {
   lobes: number[];
   peakAlpha: number;
   rotation: number;
+  customMix?: { core: Rgb; ring: Rgb };
+  isBridge?: boolean;
 }
 
 interface DripPoint {
@@ -133,6 +135,35 @@ function mixPigment(kind: DropKind, yNorm: number): { core: Rgb; ring: Rgb; isWa
   return { core: blended, ring: edge, isWater: false };
 }
 
+/** Perceptual pigment blend when two adjacent wet drops touch and bleed together */
+function mixDropPair(a: DropKind, b: DropKind, yNorm: number): { core: Rgb; ring: Rgb } {
+  const pair = [a, b].sort().join('+');
+  if (pair === 'cyan+yellow') {
+    return {
+      core: { r: 34, g: 204, b: 132 },
+      ring: { r: 20, g: 148, b: 96 },
+    };
+  }
+  if (pair === 'rose+yellow') {
+    return {
+      core: { r: 255, g: 138, b: 44 },
+      ring: { r: 214, g: 88, b: 22 },
+    };
+  }
+  if (pair === 'cyan+rose') {
+    return {
+      core: { r: 132, g: 86, b: 240 },
+      ring: { r: 88, g: 48, b: 192 },
+    };
+  }
+  const partner = a === 'water' ? b : a;
+  const partnerMix = mixPigment(partner, yNorm);
+  return {
+    core: lerpRgb(partnerMix.core, { r: 255, g: 248, b: 232 }, 0.45),
+    ring: partnerMix.ring,
+  };
+}
+
 /**
  * Interactive watercolor droplet, radial spatter fleck, and gravity-drip canvas.
  * - Drops discrete blooms and velocity-driven brush flecks rather than continuous ribbons.
@@ -226,7 +257,36 @@ export default function WatercolorDripCanvas({
     ) => {
       const kind = nextKind();
       const baseR = heavy ? 18 + Math.random() * 10 : 12 + Math.min(speed * 0.22, 10) + Math.random() * 7;
-      const maxR = baseR * (heavy ? 2.8 + Math.random() * 0.7 : 2.35 + Math.random() * 0.65);
+      const maxR = baseR * (heavy ? 3.25 + Math.random() * 0.75 : 3.1 + Math.random() * 0.9);
+
+      // Wet-in-wet neighbor mixing: if near an active drop of a different kind, bleed a bridge bloom
+      let bridgesSpawned = 0;
+      for (let i = blooms.length - 1; i >= 0 && bridgesSpawned < 2; i--) {
+        const existing = blooms[i];
+        if (existing.isBridge || existing.kind === kind || existing.baseRadius < 8) continue;
+        if (now - existing.bornAt > existing.lifeMs * 0.8) continue;
+        const dist = Math.hypot(x - existing.x, y - existing.y);
+        if (dist < existing.maxRadius * 1.45) {
+          bridgesSpawned += 1;
+          const midX = (x + existing.x) * 0.5;
+          const midY = (y + existing.y) * 0.5;
+          const bridgeBase = (baseR + existing.baseRadius) * 0.58;
+          pushBloom({
+            x: midX,
+            y: midY,
+            kind,
+            baseRadius: bridgeBase,
+            maxRadius: bridgeBase * (2.9 + Math.random() * 0.7),
+            bornAt: now + 90,
+            lifeMs: 11000 + Math.random() * 2500,
+            lobes: makeLobes(12, 0.78, 0.46),
+            peakAlpha: 0.42,
+            rotation: Math.random() * Math.PI * 2,
+            customMix: mixDropPair(kind, existing.kind, midY / Math.max(height, 1)),
+            isBridge: true,
+          });
+        }
+      }
 
       pushBloom({
         x,
@@ -235,9 +295,9 @@ export default function WatercolorDripCanvas({
         baseRadius: baseR,
         maxRadius: maxR,
         bornAt: now,
-        lifeMs: 5300 + Math.random() * 900,
+        lifeMs: 11500 + Math.random() * 3000,
         lobes: makeLobes(12),
-        peakAlpha: kind === 'water' ? 0.44 : heavy ? 0.56 : 0.48,
+        peakAlpha: kind === 'water' ? 0.46 : heavy ? 0.58 : 0.5,
         rotation: Math.random() * Math.PI * 2,
       });
 
@@ -249,18 +309,18 @@ export default function WatercolorDripCanvas({
         const fx = x + Math.cos(spreadAngle) * reach + (Math.random() - 0.5) * 14;
         const fy = y + Math.sin(spreadAngle) * reach + (Math.random() - 0.5) * 14;
         const fr = 2.5 + Math.random() * 5.2;
-        const fKind = Math.random() < 0.25 ? DROP_KINDS[(kindCursor + i) % DROP_KINDS.length] : kind;
+        const fKind = Math.random() < 0.28 ? DROP_KINDS[(kindCursor + i) % DROP_KINDS.length] : kind;
 
         pushBloom({
           x: fx,
           y: fy,
           kind: fKind,
           baseRadius: fr,
-          maxRadius: fr * (1.85 + Math.random() * 0.75),
+          maxRadius: fr * (2.3 + Math.random() * 0.85),
           bornAt: now + 25 + i * 28,
-          lifeMs: 4200 + Math.random() * 1100,
+          lifeMs: 8500 + Math.random() * 2500,
           lobes: makeLobes(10, 0.74, 0.5),
-          peakAlpha: 0.42 + Math.random() * 0.14,
+          peakAlpha: 0.44 + Math.random() * 0.14,
           rotation: Math.random() * Math.PI * 2,
         });
       }
@@ -279,7 +339,7 @@ export default function WatercolorDripCanvas({
           baseWidth: heavy ? 4.4 + Math.random() * 2.4 : 3.0 + Math.random() * 2.2,
           kind,
           startAt: now + 240 + Math.random() * 90,
-          lifeMs: 5600 + Math.random() * 900,
+          lifeMs: 12000 + Math.random() * 3000,
           trail: [{ x, y: startY }],
           poolSpawned: false,
         });
@@ -292,19 +352,21 @@ export default function WatercolorDripCanvas({
       if (age < 0) return true;
 
       const t = age / b.lifeMs;
-      // Fast capillary expansion over first ~900ms, gentle creep afterward
-      const spreadT = Math.min(1, age / 900);
+      // Fast capillary expansion over first ~950ms, then continuous slow outward bleed (+35%)
+      const spreadT = Math.min(1, age / 950);
       const fastEase = 1 - Math.pow(1 - spreadT, 2.8);
-      const slowDrift = spreadT >= 1 ? ((t - 900 / b.lifeMs) * 0.12) : 0;
-      const radius = b.baseRadius + (b.maxRadius - b.baseRadius) * Math.min(1.08, fastEase + slowDrift);
+      const slowDrift = spreadT >= 1 ? ((t - 950 / b.lifeMs) / Math.max(0.01, 1 - 950 / b.lifeMs)) * 0.35 : 0;
+      const radius = b.baseRadius + (b.maxRadius - b.baseRadius) * Math.min(1.35, fastEase + slowDrift);
 
-      const fadeIn = Math.min(1, age / 95);
-      const fadeOut = t > 0.45 ? Math.pow(1 - (t - 0.45) / 0.55, 1.35) : 1;
+      const fadeIn = Math.min(1, age / 110);
+      const fadeOut = t > 0.68 ? Math.pow(1 - (t - 0.68) / 0.32, 1.35) : 1;
       const alpha = b.peakAlpha * fadeIn * fadeOut;
       if (alpha <= 0.004) return true;
 
       const yNorm = b.y / Math.max(height, 1);
-      const { core, ring, isWater } = mixPigment(b.kind, yNorm);
+      const { core, ring, isWater } = b.customMix
+        ? { ...b.customMix, isWater: false }
+        : mixPigment(b.kind, yNorm);
 
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -376,23 +438,23 @@ export default function WatercolorDripCanvas({
         }
       } else if (!d.poolSpawned) {
         d.poolSpawned = true;
-        const poolR = d.baseWidth * 1.7 + 4;
+        const poolR = d.baseWidth * 1.85 + 5;
         pushBloom({
           x: d.headX,
           y: d.headY,
           kind: d.kind,
           baseRadius: poolR,
-          maxRadius: poolR * 2.1,
+          maxRadius: poolR * 2.6,
           bornAt: now,
-          lifeMs: Math.max(2400, d.lifeMs - elapsed),
+          lifeMs: Math.max(5200, d.lifeMs - elapsed),
           lobes: makeLobes(10, 0.8, 0.36),
-          peakAlpha: 0.48,
+          peakAlpha: 0.52,
           rotation: Math.random() * Math.PI * 2,
         });
       }
 
       const lifeT = elapsed / d.lifeMs;
-      const alpha = 0.58 * (lifeT > 0.5 ? Math.pow(1 - (lifeT - 0.5) / 0.5, 1.35) : 1);
+      const alpha = 0.62 * (lifeT > 0.68 ? Math.pow(1 - (lifeT - 0.68) / 0.32, 1.35) : 1);
       if (alpha <= 0.005 || d.trail.length < 2) return true;
 
       // Draw tapered rivulet shifting color dynamically as it enters lower horizon bands
