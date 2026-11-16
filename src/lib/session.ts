@@ -17,21 +17,24 @@ export const PIPES_DESK_URL = `${PIPES_ORIGIN}/my-pipes`;
 export const PIPES_HASH_URL = `${PIPES_ORIGIN}/write`;
 
 export function getPipesAuthUrl(intent: 'login' | 'signup' = 'login', nextPath = '/app'): string {
+  const safeNext = safeNextPath(nextPath, '/app');
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://asterisk.pipes.pink';
+  const defaultBase = intent === 'signup' ? PIPES_SIGNUP_URL : PIPES_DIRECT_SIGNIN_URL;
   const base =
-    process.env.NEXT_PUBLIC_PIPES_AUTH_URL ||
-    (intent === 'signup'
-      ? process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || PIPES_SIGNUP_URL
-      : process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || PIPES_SIGNUP_URL);
+    intent === 'signup'
+      ? process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || defaultBase
+      : process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || defaultBase;
 
   try {
     const u = new URL(base);
     if (!u.searchParams.has('ref')) u.searchParams.set('ref', 'asterisk');
     u.searchParams.set('source', 'asterisk');
     u.searchParams.set('intent', intent);
-    u.searchParams.set('return_to', safeNextPath(nextPath, '/app'));
+    u.searchParams.set('redirect_url', `${siteUrl}${safeNext}`);
     return u.toString();
   } catch {
-    return PIPES_SIGNUP_URL;
+    return defaultBase;
   }
 }
 

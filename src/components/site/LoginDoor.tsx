@@ -7,7 +7,9 @@ import { m, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
 import WingedEnvelope from '@/art/WingedEnvelope';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
-import { PIPES_SIGNUP_URL, safeNextPath } from '@/lib/session';
+import { getPipesAuthUrl, PIPES_SIGNUP_URL, safeNextPath } from '@/lib/session';
+
+const HAS_HOSTED_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 export default function LoginDoor() {
   const params = useSearchParams();
@@ -222,36 +224,69 @@ export default function LoginDoor() {
             )}
 
             <div className="pt-2 space-y-4">
-              <form action="/api/auth/stub" method="POST">
-                <input type="hidden" name="next" value={nextPath} />
-                {(() => {
-                  const bloom = bloomHandlers<HTMLButtonElement>();
-                  return (
-                    <button
-                      type="submit"
-                      {...bloom}
-                      onPointerEnter={(e) => {
-                        bloom.onPointerEnter(e);
-                        setCtaHovered(true);
-                      }}
-                      onPointerLeave={() => setCtaHovered(false)}
-                      onFocus={(e) => {
-                        bloom.onFocus(e);
-                        setCtaHovered(true);
-                      }}
-                      onBlur={() => setCtaHovered(false)}
-                      className="wc-cta inline-flex min-h-[52px] items-center gap-2.5 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)] cursor-pointer"
-                    >
-                      <span>{intent === 'signup' ? 'Sign up' : 'Log in'}</span>
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  );
-                })()}
-              </form>
-
-              <p className="text-[13px] text-[var(--a-muted)]">
-                Local preview mode: enters the logged-in workspace immediately without external API keys.
-              </p>
+              {HAS_HOSTED_CLERK ? (
+                <>
+                  {(() => {
+                    const bloom = bloomHandlers<HTMLAnchorElement>();
+                    return (
+                      <a
+                        href={getPipesAuthUrl(intent, nextPath)}
+                        rel="noopener"
+                        {...bloom}
+                        onPointerEnter={(e) => {
+                          bloom.onPointerEnter(e);
+                          setCtaHovered(true);
+                        }}
+                        onPointerLeave={() => setCtaHovered(false)}
+                        onFocus={(e) => {
+                          bloom.onFocus(e);
+                          setCtaHovered(true);
+                        }}
+                        onBlur={() => setCtaHovered(false)}
+                        className="wc-cta inline-flex min-h-[52px] items-center gap-2.5 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)] no-underline cursor-pointer"
+                      >
+                        <span>{intent === 'signup' ? 'Sign up' : 'Log in'}</span>
+                        <span aria-hidden="true">→</span>
+                      </a>
+                    );
+                  })()}
+                  <p className="text-[13px] text-[var(--a-muted)]">
+                    Signs in with your Pipes account and returns directly to your composing desk.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <form action="/api/auth/stub" method="POST">
+                    <input type="hidden" name="next" value={nextPath} />
+                    {(() => {
+                      const bloom = bloomHandlers<HTMLButtonElement>();
+                      return (
+                        <button
+                          type="submit"
+                          {...bloom}
+                          onPointerEnter={(e) => {
+                            bloom.onPointerEnter(e);
+                            setCtaHovered(true);
+                          }}
+                          onPointerLeave={() => setCtaHovered(false)}
+                          onFocus={(e) => {
+                            bloom.onFocus(e);
+                            setCtaHovered(true);
+                          }}
+                          onBlur={() => setCtaHovered(false)}
+                          className="wc-cta inline-flex min-h-[52px] items-center gap-2.5 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)] cursor-pointer"
+                        >
+                          <span>{intent === 'signup' ? 'Sign up' : 'Log in'}</span>
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      );
+                    })()}
+                  </form>
+                  <p className="text-[13px] text-[var(--a-muted)]">
+                    Local preview mode: enters the logged-in workspace immediately without external API keys.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="border-t border-[var(--a-rule)] pt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[15px]">
