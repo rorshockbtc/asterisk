@@ -8,10 +8,13 @@ import WatercolorSky, { TWILIGHT_PALETTE } from '@/art/WatercolorSky';
 import WingedEnvelope from '@/art/WingedEnvelope';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
+import { useSessionStatus } from '@/lib/use-session-status';
 
 export default function Closing() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const { authenticated, pipesSignedIn } = useSessionStatus();
+  const isLoggedIn = authenticated || pipesSignedIn;
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
   const skyProgress = useTransform(scrollYProgress, [0, 1], [0.15, 0.95]);
 
@@ -62,11 +65,11 @@ export default function Closing() {
         </h2>
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
-            href="/login?intent=signup"
+            href={isLoggedIn ? '/app' : '/login?intent=signup'}
             {...bloomHandlers<HTMLAnchorElement>()}
             className="wc-cta inline-flex min-h-[52px] items-center gap-2 rounded-full bg-[var(--a-bg)] px-7 text-lg font-semibold text-[var(--a-ink)] no-underline hover:text-white"
           >
-            Sign up
+            {isLoggedIn ? 'Go to App →' : 'Sign up'}
           </Link>
           <a
             href="#demo"

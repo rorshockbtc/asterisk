@@ -2,11 +2,10 @@
 
 import React, { useRef } from 'react';
 import Link from 'next/link';
-import { useScroll, useTransform } from 'framer-motion';
 import { Eyebrow, FadeUp } from 'accent-ui';
 import SiteHeader from '@/components/site/SiteHeader';
 import SiteFooter from '@/components/site/SiteFooter';
-import WatercolorSky from '@/art/WatercolorSky';
+import WetBrushCanvas from '@/art/WetBrushCanvas';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
 
@@ -109,26 +108,18 @@ const SHORTLIST: { artist: string; origin: string; verdict: string; note: string
 
 export default function ColophonView() {
   const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  });
-  const skyProgress = useTransform(scrollYProgress, [0, 1], [0.1, 0.85]);
 
   return (
     <>
       <SiteHeader />
 
       <main className="bg-[var(--a-bg)] text-[var(--a-ink)]">
-        {/* Hero Essay Masthead with subtle scroll-reactive watercolor wash */}
+        {/* Hero Essay Masthead with interactive wet-on-wet watercolor brushstroke canvas */}
         <section
           ref={heroRef}
-          className="relative overflow-hidden border-b border-[var(--a-rule)]"
+          className="relative overflow-hidden border-b border-[var(--a-rule)] touch-pan-y"
         >
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-50">
-            <WatercolorSky progress={skyProgress} fallbackSrc={ART.sky.src} />
-            <div className="absolute inset-0 bg-gradient-to-b from-[var(--a-bg)]/55 via-transparent to-[var(--a-bg)]" />
-          </div>
+          <WetBrushCanvas containerRef={heroRef} />
 
           <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12 pt-28 sm:pt-36 pb-16 sm:pb-24">
             <FadeUp immediate className="max-w-[56rem] space-y-6">
@@ -144,6 +135,10 @@ export default function ColophonView() {
                 bold grotesque type beside Guy Billout&apos;s precise plates. asterisk is its
                 watercolor companion—sharing the typographic spine while letting the art bleed, drift,
                 and respond to your hand.
+              </p>
+              <p className="font-serif italic text-[15px] text-[var(--a-muted)] pt-1">
+                <span className="not-italic text-[var(--a-accent)] mr-1.5">*</span>
+                Move your cursor—or sweep your thumb—across this sheet to paint wet-on-wet washes before they disperse into the paper.
               </p>
             </FadeUp>
           </div>

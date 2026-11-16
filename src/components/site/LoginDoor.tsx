@@ -2,24 +2,35 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { SignIn } from '@clerk/nextjs';
 import { m, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
 import WingedEnvelope from '@/art/WingedEnvelope';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
-import { getPipesAuthUrl, PIPES_SIGNUP_URL, safeNextPath } from '@/lib/session';
+import { PIPES_SIGNUP_URL, safeNextPath } from '@/lib/session';
+import { useSessionStatus } from '@/lib/use-session-status';
 
 const HAS_HOSTED_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 export default function LoginDoor() {
+  const router = useRouter();
   const params = useSearchParams();
   const reduce = useReducedMotion();
   const stageRef = useRef<HTMLDivElement>(null);
   const [ctaHovered, setCtaHovered] = useState(false);
+  const [forceInlineLogin, setForceInlineLogin] = useState(false);
+  const { authenticated } = useSessionStatus();
 
   const intent = params.get('intent') === 'signup' ? 'signup' : 'login';
   const unavailable = params.get('unavailable') === '1';
   const nextPath = safeNextPath(params.get('next'), '/app');
+
+  useEffect(() => {
+    if (authenticated) {
+      router.replace(nextPath);
+    }
+  }, [authenticated, nextPath, router]);
 
   const rawX = useMotionValue(0);
   const rawY = useMotionValue(0);
@@ -225,35 +236,73 @@ export default function LoginDoor() {
 
             <div className="pt-2 space-y-4">
               {HAS_HOSTED_CLERK ? (
-                <>
-                  {(() => {
-                    const bloom = bloomHandlers<HTMLAnchorElement>();
-                    return (
-                      <a
-                        href={getPipesAuthUrl(intent, nextPath)}
-                        rel="noopener"
-                        {...bloom}
-                        onPointerEnter={(e) => {
-                          bloom.onPointerEnter(e);
-                          setCtaHovered(true);
-                        }}
-                        onPointerLeave={() => setCtaHovered(false)}
-                        onFocus={(e) => {
-                          bloom.onFocus(e);
-                          setCtaHovered(true);
-                        }}
-                        onBlur={() => setCtaHovered(false)}
-                        className="wc-cta inline-flex min-h-[52px] items-center gap-2.5 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)] no-underline cursor-pointer"
+                intent === 'login' || forceInlineLogin ? (
+                  <div
+                    onPointerEnter={() => setCtaHovered(true)}
+                    onPointerLeave={() => setCtaHovered(false)}
+                    className="max-w-[420px]"
+                  >
+                    <SignIn
+                      routing="hash"
+                      forceRedirectUrl={nextPath}
+                      fallbackRedirectUrl={nextPath}
+                      signUpUrl={externalSignupHref}
+                      appearance={{
+                        elements: {
+                          rootBox: 'w-full',
+                          card: 'rounded-2xl shadow-none border border-[var(--a-rule)] bg-[var(--a-well)] p-5 w-full',
+                          headerTitle: 'hidden',
+                          headerSubtitle: 'hidden',
+                          formButtonPrimary:
+                            'rounded-full bg-[var(--a-accent-fill)] hover:opacity-95 text-white font-semibold shadow-none',
+                          footerActionLink: 'text-[var(--a-accent-text)] font-semibold',
+                        },
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {(() => {
+                      const bloom = bloomHandlers<HTMLAnchorElement>();
+                      const siteOrigin =
+                        process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') ||
+                        'https://asterisk.pipes.pink';
+                      const signupWithReturn = `${externalSignupHref}&return_to=${encodeURIComponent(
+                        `${siteOrigin}${nextPath}`
+                      )}`;
+                      return (
+                        <a
+                          href={signupWithReturn}
+                          rel="noopener"
+                          {...bloom}
+                          onPointerEnter={(e) => {
+                            bloom.onPointerEnter(e);
+                            setCtaHovered(true);
+                          }}
+                          onPointerLeave={() => setCtaHovered(false)}
+                          onFocus={(e) => {
+                            bloom.onFocus(e);
+                            setCtaHovered(true);
+                          }}
+                          onBlur={() => setCtaHovered(false)}
+                          className="wc-cta inline-flex min-h-[52px] items-center gap-2.5 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)] no-underline cursor-pointer"
+                        >
+                          <span>Create your Pipes account</span>
+                          <span aria-hidden="true">→</span>
+                        </a>
+                      );
+                    })()}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setForceInlineLogin(true)}
+                        className="wc-link bg-transparent border-0 p-0 text-[14px] font-semibold text-[var(--a-ink)] cursor-pointer"
                       >
-                        <span>{intent === 'signup' ? 'Sign up' : 'Log in'}</span>
-                        <span aria-hidden="true">→</span>
-                      </a>
-                    );
-                  })()}
-                  <p className="text-[13px] text-[var(--a-muted)]">
-                    Signs in with your Pipes account and returns directly to your composing desk.
-                  </p>
-                </>
+                        Already have a Pipes account? Log in right here →
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   <form action="/api/auth/stub" method="POST">

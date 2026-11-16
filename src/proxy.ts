@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextFetchEvent, NextMiddleware, NextRequest } from 'next/server';
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { isClerkConfigured } from '@/lib/clerk-auth';
-import { getPipesAuthUrl, SESSION_COOKIE } from '@/lib/session';
+import { SESSION_COOKIE } from '@/lib/session';
 
 const isProtectedRoute = createRouteMatcher([
   '/app(.*)',
@@ -42,13 +42,8 @@ function getClerkProxyHandler(): NextMiddleware {
       return NextResponse.json({ error: 'Sign in to use asterisk.' }, { status: 401 });
     }
 
-    const returnPath = buildReturnPath(req);
-    if (process.env.NEXT_PUBLIC_PIPES_AUTH_URL) {
-      return NextResponse.redirect(getPipesAuthUrl('login', returnPath));
-    }
-
     const login = new URL('/login', req.url);
-    login.searchParams.set('next', returnPath);
+    login.searchParams.set('next', buildReturnPath(req));
     return NextResponse.redirect(login);
   }) as unknown as NextMiddleware;
   cachedClerkHandler = handler;
@@ -56,8 +51,8 @@ function getClerkProxyHandler(): NextMiddleware {
 }
 
 /**
- * Auth gate for the logged-in `/app` workspace and its API routes.
- * Preserves query params (`?draft=&sourceTitle=&sourceUrl=&pipe=&from=pipes`) across login redirects.
+ * Auth gate for `/app` and its API routes, plus global Clerk session detection
+ * across marketing pages so returning Pipes members are recognized immediately.
  */
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   if (isClerkConfigured()) {
@@ -86,13 +81,7 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 
 export const config = {
   matcher: [
-    '/app/:path*',
-    '/studio/:path*',
-    '/api/studio/:path*',
-    '/api/publish/:path*',
-    '/api/setup/:path*',
-    '/api/hash/:path*',
-    '/api/pipes/:path*',
-    '/__clerk/:path*',
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
   ],
 };

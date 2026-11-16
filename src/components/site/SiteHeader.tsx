@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { bloomHandlers } from '@/art/bloom';
+import { useSessionStatus } from '@/lib/use-session-status';
 
 type HomeSectionId = 'how' | 'demo' | 'open';
 
@@ -23,6 +24,10 @@ const JUMP_SECTIONS: { id: HomeSectionId; label: string }[] = [
 export default function SiteHeader() {
   const pathname = usePathname();
   const isHome = pathname === '/';
+  const { authenticated, pipesSignedIn } = useSessionStatus();
+  const isLoggedIn = authenticated || pipesSignedIn;
+  const loginNext = pathname && pathname !== '/' && pathname !== '/login' ? pathname : '/app';
+  const loginHref = `/login?next=${encodeURIComponent(loginNext)}`;
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<HomeSectionId | null>(null);
   const mobileMenuRef = useRef<HTMLDetailsElement>(null);
@@ -183,29 +188,53 @@ export default function SiteHeader() {
               >
                 Colophon
               </Link>
-              <Link
-                href="/login"
-                onClick={closeMobileMenu}
-                className="mt-1 border-t border-[var(--a-rule)] flex min-h-[44px] items-center rounded-xl px-3 text-[14px] font-semibold text-[var(--a-accent-text)] no-underline hover:bg-[var(--a-surface)]"
-              >
-                Log in
-              </Link>
+              {isLoggedIn ? (
+                <Link
+                  href="/app"
+                  onClick={closeMobileMenu}
+                  className="mt-1 border-t border-[var(--a-rule)] flex min-h-[44px] items-center justify-between rounded-xl px-3 text-[14px] font-semibold text-[var(--a-accent-text)] no-underline hover:bg-[var(--a-surface)]"
+                >
+                  <span>Go to App</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              ) : (
+                <Link
+                  href={loginHref}
+                  onClick={closeMobileMenu}
+                  className="mt-1 border-t border-[var(--a-rule)] flex min-h-[44px] items-center rounded-xl px-3 text-[14px] font-semibold text-[var(--a-accent-text)] no-underline hover:bg-[var(--a-surface)]"
+                >
+                  Log in
+                </Link>
+              )}
             </nav>
           </details>
 
-          <Link
-            href="/login"
-            className="wc-link hidden md:inline-flex min-h-[44px] items-center px-1 text-[15px] font-medium text-[var(--a-ink)]"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/login?intent=signup"
-            {...bloomHandlers<HTMLAnchorElement>()}
-            className="wc-cta inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[var(--a-ink)] px-4 sm:px-5 text-sm sm:text-[15px] font-semibold text-[var(--a-bg)] no-underline whitespace-nowrap"
-          >
-            Sign up
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/app"
+              {...bloomHandlers<HTMLAnchorElement>()}
+              className="wc-cta inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-4 sm:px-5 text-sm sm:text-[15px] font-semibold text-white no-underline whitespace-nowrap shadow-[0_12px_30px_-14px_rgba(254,41,158,0.65)]"
+            >
+              <span>Go to App</span>
+              <span aria-hidden="true">→</span>
+            </Link>
+          ) : (
+            <>
+              <Link
+                href={loginHref}
+                className="wc-link hidden md:inline-flex min-h-[44px] items-center px-1 text-[15px] font-medium text-[var(--a-ink)]"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/login?intent=signup"
+                {...bloomHandlers<HTMLAnchorElement>()}
+                className="wc-cta inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[var(--a-ink)] px-4 sm:px-5 text-sm sm:text-[15px] font-semibold text-[var(--a-bg)] no-underline whitespace-nowrap"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

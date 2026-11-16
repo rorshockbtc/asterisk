@@ -16,6 +16,7 @@ import WatercolorSky from '@/art/WatercolorSky';
 import WingedEnvelope from '@/art/WingedEnvelope';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
+import { useSessionStatus } from '@/lib/use-session-status';
 
 const ENVELOPES = [
   { start: 0.34, x: [0, 34], y: [0, -46], scale: [0.5, 0.82], rot: [-8, 6], size: 'w-16 sm:w-20' },
@@ -26,6 +27,8 @@ const ENVELOPES = [
 export default function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const { authenticated, pipesSignedIn } = useSessionStatus();
+  const isLoggedIn = authenticated || pipesSignedIn;
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] });
 
   const copyY = useTransform(scrollYProgress, [0, 0.6, 1], reduce ? [0, 0, 0] : [0, -80, -80]);
@@ -127,16 +130,36 @@ export default function Hero() {
             weather, and sends it on its way.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <a
-              href="#demo"
-              {...bloomHandlers<HTMLAnchorElement>()}
-              className="wc-cta inline-flex min-h-[52px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white no-underline shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)]"
-            >
-              Try the demo <span aria-hidden="true">↓</span>
-            </a>
-            <Link href="/login?intent=signup" className="wc-link min-h-[44px] inline-flex items-center text-base sm:text-lg font-semibold text-[var(--a-ink)]">
-              Sign up
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link
+                  href="/app"
+                  {...bloomHandlers<HTMLAnchorElement>()}
+                  className="wc-cta inline-flex min-h-[52px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white no-underline shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)]"
+                >
+                  Go to App <span aria-hidden="true">→</span>
+                </Link>
+                <a
+                  href="#demo"
+                  className="wc-link min-h-[44px] inline-flex items-center text-base sm:text-lg font-semibold text-[var(--a-ink)]"
+                >
+                  Try the demo ↓
+                </a>
+              </>
+            ) : (
+              <>
+                <a
+                  href="#demo"
+                  {...bloomHandlers<HTMLAnchorElement>()}
+                  className="wc-cta inline-flex min-h-[52px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-7 text-base sm:text-lg font-semibold text-white no-underline shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)]"
+                >
+                  Try the demo <span aria-hidden="true">↓</span>
+                </a>
+                <Link href="/login?intent=signup" className="wc-link min-h-[44px] inline-flex items-center text-base sm:text-lg font-semibold text-[var(--a-ink)]">
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
           <p className="mt-3 text-[13px] text-[var(--a-ink)]/60">No account needed to try it.</p>
         </m.div>
