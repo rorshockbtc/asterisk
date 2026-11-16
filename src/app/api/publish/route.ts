@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
 import { PLATFORM_ORDER, type PlatformId } from '@/lib/platforms';
 import { dispatchVariant } from '@/lib/publishers';
+import {
+  markVariantPublished,
+  resolveWorkspaceOwner,
+  upsertVariantForPublish,
+} from '@/lib/workspace-store';
 
 export async function POST(req: Request) {
   try {
+    const owner = await resolveWorkspaceOwner();
+    if (!owner.ok) {
+      return NextResponse.json({ error: owner.error }, { status: owner.status });
+    }
+
     const body = (await req.json()) as {
       broadcastId?: number;
       platform?: PlatformId;
@@ -26,27 +35,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Draft text cannot be empty before publishing.' }, { status: 400 });
     }
 
-    const db = getDb();
-    db.prepare(`
-      INSERT INTO variants (broadcast_id, platform, body_text, reply_text, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(broadcast_id, platform) DO UPDATE SET
-        body_text = excluded.body_text,
-        reply_text = excluded.reply_text,
-        updated_at = CURRENT_TIMESTAMP
-    `).run(broadcastId, platform, bodyText, replyText);
+    const owned = await upsertVariantForPublish(
+      owner.ownerKey,
+      broadcastId,
+      platform,
+      bodyText,
+      replyText
+    );
+    if (!owned) {
+      return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+    }
 
     const result = await dispatchVariant({ platform, bodyText, replyText, mode });
 
     if (result.ok) {
-      db.prepare(`
-        UPDATE variants
-        SET status = ?,
-            external_url = COALESCE(NULLIF(?, ''), external_url),
-            published_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE broadcast_id = ? AND platform = ?
-      `).run(mode === 'api' ? 'published' : 'copied', result.externalUrl || '', broadcastId, platform);
+      await markVariantPublished(
+        broadcastId,
+        platform,
+        mode === 'api' ? 'published' : 'copied',
+        result.externalUrl || ''
+      );
     }
 
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
