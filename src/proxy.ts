@@ -32,6 +32,9 @@ function getClerkProxyHandler(): NextMiddleware {
 
     const { userId } = await auth();
     if (userId) {
+      if (req.nextUrl.pathname.startsWith('/studio')) {
+        return NextResponse.redirect(new URL(buildReturnPath(req), req.url));
+      }
       return NextResponse.next();
     }
 
@@ -66,6 +69,9 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
   }
 
   if (request.cookies.get(SESSION_COOKIE)?.value) {
+    if (request.nextUrl.pathname.startsWith('/studio')) {
+      return NextResponse.redirect(new URL(buildReturnPath(request), request.url));
+    }
     return NextResponse.next();
   }
 

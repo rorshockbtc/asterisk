@@ -9,6 +9,9 @@ function resolveDbPath(): string {
   if (process.env.ASTERISK_DB_PATH) {
     return process.env.ASTERISK_DB_PATH;
   }
+  if (process.env.VERCEL === '1') {
+    return '/tmp/asterisk.db';
+  }
   return join(process.cwd(), 'data', 'asterisk.db');
 }
 
