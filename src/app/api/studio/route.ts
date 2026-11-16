@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import {
   computeCadenceStatus,
+  MAX_MEDIA_IMAGES,
   PLATFORM_ORDER,
   PLATFORM_SPECS,
+  type MediaAttachment,
   type PlatformId,
 } from '@/lib/platforms';
 import { getApiConnectionStatus } from '@/lib/publishers';
@@ -12,6 +14,16 @@ interface VariantInput {
   platform: PlatformId;
   body_text: string;
   reply_text?: string;
+}
+
+function safeParseMediaJson(raw: string | null | undefined): MediaAttachment[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as MediaAttachment[]).slice(0, MAX_MEDIA_IMAGES) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function GET() {
@@ -26,6 +38,7 @@ export async function GET() {
       brand: string;
       seed_text: string;
       media_note: string;
+      media_json?: string;
       created_at: string;
       updated_at: string;
     }>;
@@ -46,6 +59,7 @@ export async function GET() {
 
     const enriched = broadcasts.map((b) => ({
       ...b,
+      media_attachments: safeParseMediaJson(b.media_json),
       variants: allVariants.filter((v) => v.broadcast_id === b.id),
     }));
 
@@ -62,7 +76,8 @@ export async function GET() {
         )
         .get(platform) as { published_at: string } | undefined;
 
-      const targetDays = settingsMap[platform]?.cadence_days || PLATFORM_SPECS[platform].cadenceDefaultDays;
+      const targetDays =
+        settingsMap[platform]?.cadence_days || PLATFORM_SPECS[platform].cadenceDefaultDays;
       return computeCadenceStatus(platform, lastRow?.published_at || null, targetDays);
     });
 
@@ -78,7 +93,7 @@ export async function GET() {
       apiStatus: getApiConnectionStatus(),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load studio';
+    const message = err instanceof Error ? err.message : 'Failed to load workspace';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -91,13 +106,18 @@ export async function POST(req: Request) {
       brand?: string;
       seed_text?: string;
       media_note?: string;
+      media_attachments?: MediaAttachment[];
       variants?: VariantInput[];
     };
 
     const title = String(body.title || '').trim() || 'Untitled Note';
-    const brand = String(body.brand || 'CHB Studio').trim();
+    const brand = String(body.brand || 'Build Log').trim();
     const seedText = String(body.seed_text || '').trim();
     const mediaNote = String(body.media_note || '').trim();
+    const mediaAttachments = Array.isArray(body.media_attachments)
+      ? body.media_attachments.slice(0, MAX_MEDIA_IMAGES)
+      : [];
+    const mediaJson = JSON.stringify(mediaAttachments);
     const variants = Array.isArray(body.variants) ? body.variants : [];
 
     const db = getDb();
@@ -106,13 +126,15 @@ export async function POST(req: Request) {
     if (broadcastId > 0) {
       db.prepare(
         `UPDATE broadcasts
-         SET title = ?, brand = ?, seed_text = ?, media_note = ?, updated_at = CURRENT_TIMESTAMP
+         SET title = ?, brand = ?, seed_text = ?, media_note = ?, media_json = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`
-      ).run(title, brand, seedText, mediaNote, broadcastId);
+      ).run(title, brand, seedText, mediaNote, mediaJson, broadcastId);
     } else {
       const info = db
-        .prepare(`INSERT INTO broadcasts (title, brand, seed_text, media_note) VALUES (?, ?, ?, ?)`)
-        .run(title, brand, seedText, mediaNote);
+        .prepare(
+          `INSERT INTO broadcasts (title, brand, seed_text, media_note, media_json) VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(title, brand, seedText, mediaNote, mediaJson);
       broadcastId = Number(info.lastInsertRowid);
     }
 
@@ -127,7 +149,12 @@ export async function POST(req: Request) {
 
     for (const v of variants) {
       if (!PLATFORM_ORDER.includes(v.platform)) continue;
-      upsertVariant.run(broadcastId, v.platform, String(v.body_text || ''), String(v.reply_text || ''));
+      upsertVariant.run(
+        broadcastId,
+        v.platform,
+        String(v.body_text || ''),
+        String(v.reply_text || '')
+      );
     }
 
     return NextResponse.json({ success: true, id: broadcastId });

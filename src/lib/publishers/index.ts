@@ -1,4 +1,4 @@
-import type { PlatformId } from '../platforms';
+import { splitIntoXThread, type PlatformId } from '../platforms';
 
 export interface PublishAttemptResult {
   ok: boolean;
@@ -9,27 +9,37 @@ export interface PublishAttemptResult {
 }
 
 export function getApiConnectionStatus(): Record<PlatformId, { configured: boolean; note: string }> {
+  const threadsReady = Boolean(process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID);
+  const xReady = Boolean(process.env.X_ACCESS_TOKEN);
+
   return {
-    x: {
-      configured: Boolean(process.env.X_ACCESS_TOKEN),
-      note: process.env.X_ACCESS_TOKEN
-        ? 'X OAuth token configured'
-        : 'Copy-ready (add X_ACCESS_TOKEN in .env.local for direct API post)',
-    },
     threads: {
-      configured: Boolean(process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID),
-      note:
-        process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID
-          ? 'Threads Graph API configured'
-          : 'Copy-ready (add THREADS_ACCESS_TOKEN + THREADS_USER_ID for free auto-publish)',
+      configured: threadsReady,
+      note: threadsReady
+        ? 'Threads Graph API live (supports self-reply links)'
+        : 'Copy-ready today (optional THREADS_ACCESS_TOKEN + THREADS_USER_ID in .env.local)',
+    },
+    x: {
+      configured: xReady,
+      note: xReady
+        ? 'X API v2 live (supports threads & self-replies)'
+        : 'Copy-ready today (optional X_ACCESS_TOKEN in .env.local)',
+    },
+    facebook: {
+      configured: false,
+      note: 'Copy & Open Facebook (drop URL in first comment)',
+    },
+    substack: {
+      configured: false,
+      note: 'Copy & Open Substack Notes',
     },
     instagram: {
-      configured: Boolean(process.env.IG_ACCESS_TOKEN && process.env.IG_USER_ID),
-      note: 'Copy-ready (image/carousel upload stays native in Instagram)',
+      configured: false,
+      note: 'Copy caption & upload 4:5 visual natively in Instagram',
     },
     tiktok: {
-      configured: Boolean(process.env.TIKTOK_ACCESS_TOKEN),
-      note: 'Copy-ready (upload vertical clip directly in TikTok Studio)',
+      configured: false,
+      note: 'Test Mode — copy hook caption; 9:16 video optional today',
     },
   };
 }
@@ -52,7 +62,7 @@ export async function dispatchVariant({
     return {
       ok: true,
       mode: 'copy',
-      message: `Marked ${platform.toUpperCase()} as posted via Copy & Paste.`,
+      message: `Marked ${platform.toUpperCase()} as posted via Copy & Open.`,
     };
   }
 
@@ -64,11 +74,10 @@ export async function dispatchVariant({
         ok: false,
         mode: 'api',
         fallbackToCopy: true,
-        message: 'Threads API tokens are not configured yet — use Copy Post & Open Threads.',
+        message: 'Threads API tokens are not set yet — use Copy & Open Threads.',
       };
     }
 
-    // Step 1: Create Threads container
     const createRes = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +94,6 @@ export async function dispatchVariant({
       };
     }
 
-    // Step 2: Publish container
     const pubRes = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -102,7 +110,7 @@ export async function dispatchVariant({
       };
     }
 
-    // Optional self-reply with link so main Threads post keeps full organic reach
+    let replyPosted = false;
     if (replyText && replyText.trim()) {
       const replyCreate = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads`, {
         method: 'POST',
@@ -117,20 +125,23 @@ export async function dispatchVariant({
       });
       const rcJson = await replyCreate.json();
       if (replyCreate.ok && rcJson.id) {
-        await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`, {
+        const replyPub = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ creation_id: rcJson.id, access_token: token }),
           signal: AbortSignal.timeout(10000),
         });
+        replyPosted = replyPub.ok;
       }
     }
 
     return {
       ok: true,
       mode: 'api',
-      externalUrl: `https://www.threads.net/`,
-      message: 'Published directly to Threads via official Graph API!',
+      externalUrl: 'https://www.threads.net/',
+      message: replyPosted
+        ? 'Published to Threads and attached your self-reply link!'
+        : 'Published directly to Threads via Graph API!',
     };
   }
 
@@ -141,34 +152,54 @@ export async function dispatchVariant({
         ok: false,
         mode: 'api',
         fallbackToCopy: true,
-        message: 'X_ACCESS_TOKEN is not configured yet — use Copy Post & Open X.',
+        message: 'X_ACCESS_TOKEN is not set yet — use Copy & Open X.',
       };
     }
 
-    const res = await fetch('https://api.twitter.com/2/tweets', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text: bodyText }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.data?.id) {
-      return {
-        ok: false,
-        mode: 'api',
-        fallbackToCopy: true,
-        message: `X API error: ${data.detail || data.title || res.status}`,
-      };
+    const parts = splitIntoXThread(bodyText, 280);
+    if (replyText && replyText.trim()) {
+      parts.push(replyText.trim().slice(0, 280));
+    }
+
+    let rootId = '';
+    let prevId = '';
+
+    for (const part of parts) {
+      const payload: { text: string; reply?: { in_reply_to_tweet_id: string } } = { text: part };
+      if (prevId) {
+        payload.reply = { in_reply_to_tweet_id: prevId };
+      }
+
+      const res = await fetch('https://api.twitter.com/2/tweets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.data?.id) {
+        return {
+          ok: false,
+          mode: 'api',
+          fallbackToCopy: true,
+          message: `X API error: ${data.detail || data.title || res.status}`,
+        };
+      }
+      if (!rootId) rootId = data.data.id;
+      prevId = data.data.id;
     }
 
     return {
       ok: true,
       mode: 'api',
-      externalUrl: `https://x.com/i/web/status/${data.data.id}`,
-      message: 'Published directly to X!',
+      externalUrl: `https://x.com/i/web/status/${rootId}`,
+      message:
+        parts.length > 1
+          ? `Published ${parts.length}-post thread to X!`
+          : 'Published directly to X!',
     };
   }
 
@@ -176,6 +207,6 @@ export async function dispatchVariant({
     ok: false,
     mode: 'api',
     fallbackToCopy: true,
-    message: `${platform.toUpperCase()} uses Copy + manual media upload until OAuth media bridge is added.`,
+    message: `${platform.toUpperCase()} uses Copy & Open natively right now.`,
   };
 }

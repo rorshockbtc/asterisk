@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   serverExternalPackages: ["better-sqlite3"],
   cacheComponents: true,
   partialPrefetching: true,
@@ -12,6 +11,20 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async redirects() {
+    return [
+      {
+        source: "/studio",
+        destination: "/app",
+        permanent: false,
+      },
+      {
+        source: "/studio/:path*",
+        destination: "/app/:path*",
+        permanent: false,
+      },
+    ];
   },
 };
 

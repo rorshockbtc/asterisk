@@ -35,9 +35,10 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS broadcasts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
-      brand TEXT NOT NULL DEFAULT 'CHB Studio',
+      brand TEXT NOT NULL DEFAULT 'Build Log',
       seed_text TEXT NOT NULL DEFAULT '',
       media_note TEXT DEFAULT '',
+      media_json TEXT NOT NULL DEFAULT '[]',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -73,27 +74,44 @@ function initSchema(db: Database.Database) {
     );
   `);
 
+  // Idempotent migration for existing local SQLite databases missing `media_json`
+  const cols = db.prepare(`PRAGMA table_info(broadcasts)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'media_json')) {
+    db.exec(`ALTER TABLE broadcasts ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]'`);
+  }
+
   const insertSetting = db.prepare(`
     INSERT OR IGNORE INTO platform_settings (platform, handle, cadence_days)
     VALUES (?, ?, ?)
   `);
   for (const platform of PLATFORM_ORDER) {
-    insertSetting.run(
-      platform,
-      platform === 'x' ? '@rorshockbtc' : '',
-      PLATFORM_SPECS[platform].cadenceDefaultDays
-    );
+    insertSetting.run(platform, '', PLATFORM_SPECS[platform].cadenceDefaultDays);
   }
 
-  const insertStep = db.prepare(`
-    INSERT OR IGNORE INTO setup_checklist (platform, step_key, label, detail, sort_order)
+  const upsertStep = db.prepare(`
+    INSERT INTO setup_checklist (platform, step_key, label, detail, sort_order)
     VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(step_key) DO UPDATE SET
+      platform = excluded.platform,
+      label = excluded.label,
+      detail = excluded.detail,
+      sort_order = excluded.sort_order
   `);
+
+  const activeKeys: string[] = [];
   let sortOrder = 1;
   for (const platform of PLATFORM_ORDER) {
     const guide = PLATFORM_GUIDES[platform as PlatformId];
     for (const step of guide.setupSteps) {
-      insertStep.run(platform, step.key, step.label, step.detail, sortOrder++);
+      activeKeys.push(step.key);
+      upsertStep.run(platform, step.key, step.label, step.detail, sortOrder++);
     }
+  }
+
+  if (activeKeys.length > 0) {
+    const placeholders = activeKeys.map(() => '?').join(', ');
+    db.prepare(`DELETE FROM setup_checklist WHERE step_key NOT IN (${placeholders})`).run(
+      ...activeKeys
+    );
   }
 }

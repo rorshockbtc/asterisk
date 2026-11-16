@@ -1,30 +1,380 @@
 @import "tailwindcss";
+@import "accent-ui/styles.css";
 
 :root {
-  --background: #fbf9f5;
-  --foreground: #0f172a;
+  /* Playful-Principal Dialect (aligned with colonhyphenbracket.pink & accent-ui) */
+  --a-bg: #FAF8F5;
+  --a-surface: #F3EEE6;
+  --a-card: #F3EEE6;
+  --a-well: #FFFFFF;
+  --a-ink: #111827;
+  --a-muted: #4B5563;
+  --a-rule: rgba(17, 24, 39, 0.12);
+
+  /* Sovereign Hot Pink primary CTA fill & mark (OLED-safe override of #B81468) */
+  --a-accent: #FE299E;
+  --a-accent-fill: #FE299E;
+  --a-accent-fill-hover: #111827;
+  --a-accent-fg: #FFFFFF;
+  --a-accent-text: #B81468;
+
+  /* Quiet Sky accent reserved for preliminary / test-mode notices */
+  --a-sky: #0284C7;
+  --a-sky-fg: #FFFFFF;
+  --a-sky-surface: #DFECEF;
+  --a-sky-ink: #02212F;
+  --a-sky-text: #0B5CAB;
+
+  --a-emerald: #16A34A;
+  --a-radius-cta: 9999px;
+  --target-size: 24px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --target-size: 44px;
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--a-bg);
+  --color-foreground: var(--a-ink);
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Enforce Accént Layer 1 13px minimum typographic floor across text-xs utilities */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.4;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+@layer base {
+  html {
+    scroll-padding-top: 5rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  body {
+    background: var(--a-bg);
+    color: var(--a-ink);
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+  }
+
+  :where(a, code) {
+    overflow-wrap: anywhere;
+  }
+
+  img,
+  video {
+    max-inline-size: 100%;
+    block-size: auto;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
+  }
+
+  :where(
+    button,
+    select,
+    textarea,
+    input:not([type="checkbox"], [type="radio"]),
+    [role="button"],
+    nav a,
+    label:has(input[type="checkbox"], input[type="radio"])
+  ) {
+    min-block-size: var(--target-size);
+    min-inline-size: var(--target-size);
+  }
+
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--a-accent);
+    outline-offset: 2px;
+  }
 }
 
-input,
-textarea,
-select {
-  font-size: max(1rem, 1em);
+/* Code-only monospace utility (never used for eyebrows or UI chrome) */
+.font-code {
+  font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-:where(a, button, input, textarea, select):focus-visible {
-  outline: 3px solid #0284c7;
-  outline-offset: 2px;
+/* Cold-press watercolor paper mask for ambient overlays (modern-web-guidance: visually-texture-content) */
+.wc-textured-motif {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='1.15' intercept='-0.15'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' fill='%23000'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: repeat;
+  -webkit-mask-size: 220px 220px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='1.15' intercept='-0.15'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' fill='%23000'/%3E%3C/svg%3E");
+  mask-repeat: repeat;
+  mask-size: 220px 220px;
+}
+
+@supports (not (mask-image: url(x))) and (not (-webkit-mask-image: url(x))) {
+  .wc-textured-motif {
+    opacity: 0.9;
+  }
+}
+
+/* Tier 1 Ergonomic Motion Utilities (expected by accent-ui primitives) */
+.t-press {
+  transition-property: transform, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.t-color {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Auto-sizing textareas locked to horizontal width per modern-web-guidance */
+.asterisk-textarea {
+  field-sizing: content;
+  height: auto;
+  width: 100%;
+  min-block-size: 5lh;
+  max-block-size: 18lh;
+}
+
+.asterisk-textarea-compact {
+  field-sizing: content;
+  height: auto;
+  width: 100%;
+  min-block-size: 2.75lh;
+  max-block-size: 14lh;
+}
+
+/* Single-row scrolling tablist with forced-colors-safe pseudo-element indicator & edge fade */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.asterisk-tablist {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: inline proximity;
+  scroll-padding-inline: 1.5rem;
+  scrollbar-width: none;
+  --fade-size: 2rem;
+  mask:
+    linear-gradient(black, black) no-clip subtract,
+    linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+    linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+  animation: asterisk-fade-start linear both, asterisk-fade-end linear both;
+  animation-timeline: scroll(self inline);
+  animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
+}
+
+@keyframes asterisk-fade-start {
+  to {
+    --fade-start: var(--fade-size);
+  }
+}
+
+@keyframes asterisk-fade-end {
+  from {
+    --fade-end: var(--fade-size);
+  }
+}
+
+.asterisk-tablist::-webkit-scrollbar {
+  display: none;
+}
+
+.asterisk-tablist [role="tab"] {
+  position: relative;
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.asterisk-tablist [role="tab"][aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 2.5px solid var(--a-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Watercolor art layer ("after Folon") — see ART_DIRECTION.md
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --wc-dawn: #F7B9C9;
+  --wc-pigment: #FE299E;
+  --wc-peach: #FAD6B8;
+  --wc-violet: #9C8FD0;
+  --wc-sky: #A9D3EA;
+  --wc-ink: #2A2F45;
+  --wc-paper: #FAF8F5;
+  --ease-editorial: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Corporate-scale display type */
+.text-huge {
+  font-size: clamp(2.75rem, 7vw, 7rem);
+  line-height: 0.94;
+  letter-spacing: -0.04em;
+}
+.text-big {
+  font-size: clamp(2rem, 4.4vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+/* Painted layers on white paper composite like glazes */
+.wc-glaze {
+  mix-blend-mode: multiply;
+}
+
+/* Pigment bloom CTA: a pink blot grows from the pointer / focus origin */
+.wc-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  --bx: 50%;
+  --by: 50%;
+  transition: transform 220ms var(--ease-editorial), background-color 220ms var(--ease-editorial),
+    color 220ms var(--ease-editorial);
+}
+.wc-cta::before {
+  content: "";
+  position: absolute;
+  left: var(--bx);
+  top: var(--by);
+  width: 260%;
+  aspect-ratio: 1;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--wc-pigment) 92%, transparent) 0%,
+    color-mix(in oklab, var(--wc-pigment) 80%, var(--wc-dawn)) 58%,
+    transparent 74%
+  );
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 560ms var(--ease-editorial);
+}
+.wc-cta:hover::before,
+.wc-cta:focus-visible::before {
+  transform: translate(-50%, -50%) scale(1);
+}
+.wc-cta:hover,
+.wc-cta:focus-visible {
+  transform: translateY(-2px);
+}
+
+/* Watercolor underline: an irregular brush stroke draws in on hover/focus */
+.wc-link {
+  text-decoration: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2c14-2.6 28 1.4 42-.6 15-2.1 29-2.3 44 .2 11 1.8 22 .9 32-1.4' fill='none' stroke='%23FE299E' stroke-width='2.6' stroke-linecap='round' opacity='.85'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 0.42em;
+  padding-bottom: 0.12em;
+  transition: background-size 480ms var(--ease-editorial), color 200ms var(--ease-editorial);
+}
+.wc-link:hover,
+.wc-link:focus-visible,
+.wc-link[data-active="true"] {
+  background-size: 100% 0.42em;
+}
+
+.wc-link[data-active="true"] {
+  color: var(--a-accent-text);
+}
+
+/* Paper grain overlay */
+.wc-paper-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .16 0 0 0 0 .18 0 0 0 0 .27 0 0 0 .08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-cta,
+  .wc-cta::before,
+  .wc-link {
+    transition: none;
+  }
+  .wc-cta:hover,
+  .wc-cta:focus-visible {
+    transform: none;
+  }
+}
+
+/* Soft wet-edge reveal mask for plates */
+.wc-wet-edge {
+  -webkit-mask-image: radial-gradient(120% 100% at 50% 50%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(120% 100% at 50% 50%, #000 62%, transparent 100%);
+}
+
+/* Native modal dialog scroll containment (modern-web-guidance: dialog) */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(42, 47, 69, 0.36);
+  backdrop-filter: blur(3px);
+}
+
+/* Watercolor editorial marquee */
+@keyframes wc-marquee-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.wc-marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: wc-marquee-scroll 26s linear infinite;
+}
+.wc-marquee-track:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-marquee-track {
+    animation: none;
+  }
 }
