@@ -242,9 +242,7 @@ export default function WatercolorDripCanvas({
     let lastTick = performance.now();
     let kindCursor = 0;
     let accumDist = 0;
-    let motionAccum = 0;
-    let distThreshold = 34;
-    let motionThreshold = 11;
+    let lastSpawnAt = 0;
     let lastPointer: { x: number; y: number; time: number } | null = null;
     let stationarySince = 0;
     let lastHeldDripAt = 0;
@@ -338,36 +336,6 @@ export default function WatercolorDripCanvas({
       }
     };
 
-    const spawnMotionBead = (
-      x: number,
-      y: number,
-      angle: number,
-      speed: number,
-      vxInit: number,
-      vyInit: number,
-      now: number
-    ) => {
-      const kind = DROP_KINDS[kindCursor % DROP_KINDS.length];
-      const baseR = 4.5 + Math.min(speed * 0.14, 5.5) + Math.random() * 2.5;
-      const aspect = Math.min(2.4, 1.6 + Math.min(speed * 0.03, 0.8));
-      pushBloom({
-        x: x + (Math.random() - 0.5) * 3,
-        y: y + (Math.random() - 0.5) * 3,
-        vx: Math.max(-2.6, Math.min(2.6, vxInit * 0.16)),
-        vy: Math.max(-2.6, Math.min(2.6, vyInit * 0.16)),
-        aspect,
-        kind,
-        baseRadius: baseR,
-        maxRadius: baseR * (2.35 + Math.random() * 0.55),
-        bornAt: now,
-        lifeMs: 9500 + Math.random() * 2500,
-        morphMs: 4800 + Math.random() * 1200,
-        lobes: makeLobes(10, 0.82, 0.34),
-        peakAlpha: kind === 'water' ? 0.32 : 0.38,
-        rotation: angle + (Math.random() - 0.5) * 0.22,
-      });
-    };
-
     const spawnCluster = (
       x: number,
       y: number,
@@ -379,8 +347,19 @@ export default function WatercolorDripCanvas({
       vyInit = 0
     ) => {
       const kind = nextKind();
-      const baseR = heavy ? 18 + Math.random() * 10 : 12 + Math.min(speed * 0.22, 10) + Math.random() * 7;
+      const isSlow = heavy || speed < 4;
+      const isFast = !heavy && speed >= 16;
+      const baseR = isSlow
+        ? 16 + Math.random() * 8
+        : 11 + Math.random() * 6;
       const maxR = baseR * (heavy ? 3.35 + Math.random() * 0.8 : 3.2 + Math.random() * 0.9);
+      const aspect = heavy
+        ? 1.0 + Math.random() * 0.14
+        : isSlow
+          ? 1.0 + Math.random() * 0.18
+          : isFast
+            ? 1.55 + Math.random() * 0.8
+            : 1.18 + ((speed - 4) / 12) * 0.37;
 
       spawnBridgeMatches(x, y, baseR, kind, now, 3);
 
@@ -389,6 +368,7 @@ export default function WatercolorDripCanvas({
         y,
         vx: Math.max(-2.4, Math.min(2.4, vxInit * 0.14)),
         vy: Math.max(-2.4, Math.min(2.4, vyInit * 0.14)),
+        aspect,
         kind,
         baseRadius: baseR,
         maxRadius: maxR,
@@ -397,14 +377,16 @@ export default function WatercolorDripCanvas({
         morphMs: 4800 + Math.random() * 1200,
         lobes: makeLobes(12),
         peakAlpha: kind === 'water' ? 0.46 : heavy ? 0.58 : 0.5,
-        rotation: Math.random() * Math.PI * 2,
+        rotation: angle + (Math.random() - 0.5) * 0.25,
       });
 
-      // Radial brush-fleck spatter thrown ahead in velocity direction
+      // Radial brush-fleck spatter thrown further forward on fast sweeps
       const fleckCount = heavy ? 4 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 5);
+      const minReach = isSlow ? 16 : 35;
+      const maxExtraReach = isSlow ? 28 : Math.min(70, 24 + speed * 2.1);
       for (let i = 0; i < fleckCount; i++) {
-        const spreadAngle = angle + (Math.random() - 0.5) * 1.7;
-        const reach = (18 + Math.min(speed * 1.4, 58)) * (0.45 + Math.random() * 0.95);
+        const spreadAngle = angle + (Math.random() - 0.5) * (isFast ? 1.25 : 1.7);
+        const reach = minReach + Math.random() * maxExtraReach;
         const fx = x + Math.cos(spreadAngle) * reach + (Math.random() - 0.5) * 14;
         const fy = y + Math.sin(spreadAngle) * reach + (Math.random() - 0.5) * 14;
         const fr = 2.5 + Math.random() * 5.2;
@@ -413,8 +395,9 @@ export default function WatercolorDripCanvas({
         pushBloom({
           x: fx,
           y: fy,
-          vx: Math.cos(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.0)),
-          vy: Math.sin(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.0)),
+          vx: Math.cos(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
+          vy: Math.sin(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
+          aspect: isFast ? 1.25 + Math.random() * 0.45 : 1,
           kind: fKind,
           baseRadius: fr,
           maxRadius: fr * (2.4 + Math.random() * 0.85),
@@ -423,39 +406,41 @@ export default function WatercolorDripCanvas({
           morphMs: 4800 + Math.random() * 1200,
           lobes: makeLobes(10, 0.74, 0.5),
           peakAlpha: 0.44 + Math.random() * 0.14,
-          rotation: Math.random() * Math.PI * 2,
+          rotation: spreadAngle,
         });
       }
 
-      // Launch a 360° gesture-directed runner along the exact cursor velocity vector (up, left, right, down)
-      const gestureSpeed = Math.hypot(vxInit, vyInit);
-      const launchAngle =
-        gestureSpeed > 1.5
-          ? Math.atan2(vyInit, vxInit) + (Math.random() - 0.5) * 0.28
-          : angle;
-      const launchSpeed =
-        gestureSpeed > 1.5
-          ? Math.min(4.8, Math.max(1.4, gestureSpeed * 0.38))
-          : 1.15 + Math.random() * 0.95;
+      // Release directional runner selectively (~45% of moving drops, always on heavy drips)
+      if (heavy || Math.random() < 0.45) {
+        const gestureSpeed = Math.hypot(vxInit, vyInit);
+        const launchAngle =
+          gestureSpeed > 1.5
+            ? Math.atan2(vyInit, vxInit) + (Math.random() - 0.5) * 0.28
+            : angle;
+        const launchSpeed =
+          gestureSpeed > 1.5
+            ? Math.min(4.8, Math.max(1.4, gestureSpeed * 0.38))
+            : 1.15 + Math.random() * 0.95;
 
-      pushDrip({
-        x,
-        y0: y,
-        headX: x,
-        headY: y,
-        vx: Math.cos(launchAngle) * launchSpeed,
-        vy: Math.sin(launchAngle) * launchSpeed,
-        traveled: 0,
-        seed: Math.random() * 100,
-        targetLength: (heavy ? 135 : 95) + Math.random() * 130,
-        baseWidth: heavy ? 4.4 + Math.random() * 2.2 : 3.0 + Math.random() * 2.0,
-        kind,
-        startAt: now + 60 + Math.random() * 70,
-        lifeMs: 18000 + Math.random() * 4000,
-        morphMs: 5000 + Math.random() * 1000,
-        trail: [{ x, y }],
-        poolSpawned: false,
-      });
+        pushDrip({
+          x,
+          y0: y,
+          headX: x,
+          headY: y,
+          vx: Math.cos(launchAngle) * launchSpeed,
+          vy: Math.sin(launchAngle) * launchSpeed,
+          traveled: 0,
+          seed: Math.random() * 100,
+          targetLength: (heavy ? 135 : 95) + Math.random() * 130,
+          baseWidth: heavy ? 4.4 + Math.random() * 2.2 : 3.0 + Math.random() * 2.0,
+          kind,
+          startAt: now + 60 + Math.random() * 70,
+          lifeMs: 18000 + Math.random() * 4000,
+          morphMs: 5000 + Math.random() * 1000,
+          trail: [{ x, y }],
+          poolSpawned: false,
+        });
+      }
     };
 
     /**
@@ -782,9 +767,10 @@ export default function WatercolorDripCanvas({
         const dtFrames = Math.min(2.5, Math.max(0.25, (now - lastTick) / 16.67));
         lastTick = now;
 
-        // Held wet brush drip: if pointer pauses inside section, gently release a slow downward bead
-        if (pointerInside && lastPointer && now - stationarySince > 420 && now - lastHeldDripAt > 480) {
+        // Held wet brush drip: if pointer pauses inside section, gently release a slow downward bead every ~780ms
+        if (pointerInside && lastPointer && now - stationarySince > 480 && now - lastHeldDripAt > 780) {
           lastHeldDripAt = now;
+          lastSpawnAt = now;
           spawnCluster(
             lastPointer.x + (Math.random() - 0.5) * 10,
             lastPointer.y + (Math.random() - 0.5) * 10,
@@ -844,7 +830,8 @@ export default function WatercolorDripCanvas({
         lastPointer = { x, y, time: now };
         stationarySince = now;
         lastHeldDripAt = now;
-        spawnCluster(x, y, -Math.PI * 0.25, 14, now, false, 2.2, -1.6);
+        lastSpawnAt = now;
+        spawnCluster(x, y, -Math.PI * 0.25, 4, now, false, 1.8, -1.2);
         startLoop();
         return;
       }
@@ -888,20 +875,26 @@ export default function WatercolorDripCanvas({
         }
       }
 
-      // Live brush-tip wet filament tracking the exact cursor path
-      motionAccum += dist;
-      if (motionAccum >= motionThreshold) {
-        spawnMotionBead(x, y, angle, speed, vxNorm, vyNorm, now);
-        motionAccum = 0;
-        motionThreshold = 10 + Math.random() * 4;
+      // Velocity-dependent drop spacing: slow drips land close together; fast sweeps splotch wide
+      let requiredDist: number;
+      let minIntervalMs: number;
+      if (speed < 4) {
+        requiredDist = 32 + speed * 5;
+        minIntervalMs = 85;
+      } else if (speed < 16) {
+        requiredDist = 52 + (speed - 4) * 8.5;
+        minIntervalMs = 105;
+      } else {
+        requiredDist = Math.min(310, 154 + (speed - 16) * 9.5);
+        minIntervalMs = 120;
       }
+      if (isTouch) requiredDist *= 1.08;
 
-      // Periodic main droplet + spatter fleck + 360° gesture-directed runner
       accumDist += dist;
-      if (accumDist >= distThreshold) {
+      if (accumDist >= requiredDist && now - lastSpawnAt >= minIntervalMs) {
         spawnCluster(x, y, angle, speed, now, false, vxNorm, vyNorm);
         accumDist = 0;
-        distThreshold = (isTouch ? 36 : 32) + Math.random() * 22;
+        lastSpawnAt = now;
       }
 
       lastPointer = { x, y, time: now };
@@ -927,6 +920,7 @@ export default function WatercolorDripCanvas({
       lastPointer = { x: pt.x, y: pt.y, time: now };
       stationarySince = now;
       lastHeldDripAt = now;
+      lastSpawnAt = now;
       spawnFlickBurst(pt.x, pt.y, now);
       startLoop();
     };
@@ -935,7 +929,6 @@ export default function WatercolorDripCanvas({
       pointerInside = false;
       lastPointer = null;
       accumDist = 0;
-      motionAccum = 0;
     };
 
     const onTouchMove = (e: TouchEvent) => {
