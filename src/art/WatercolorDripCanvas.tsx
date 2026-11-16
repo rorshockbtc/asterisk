@@ -14,6 +14,9 @@ type DropKind = 'yellow' | 'cyan' | 'rose' | 'water';
 interface BloomDrop {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
+  aspect?: number;
   kind: DropKind;
   baseRadius: number;
   maxRadius: number;
@@ -36,7 +39,10 @@ interface GravityDrip {
   y0: number;
   headX: number;
   headY: number;
+  vx: number;
   vy: number;
+  terminalVy: number;
+  traveled: number;
   seed: number;
   targetLength: number;
   baseWidth: number;
@@ -194,7 +200,9 @@ export default function WatercolorDripCanvas({
     let lastTick = performance.now();
     let kindCursor = 0;
     let accumDist = 0;
+    let motionAccum = 0;
     let distThreshold = 38;
+    let motionThreshold = 11;
     let lastPointer: { x: number; y: number; time: number } | null = null;
     let stationarySince = 0;
     let lastHeldDripAt = 0;
@@ -247,13 +255,44 @@ export default function WatercolorDripCanvas({
       drips.push(drip);
     };
 
+    const spawnMotionBead = (
+      x: number,
+      y: number,
+      angle: number,
+      speed: number,
+      vxInit: number,
+      vyInit: number,
+      now: number
+    ) => {
+      const kind = DROP_KINDS[kindCursor % DROP_KINDS.length];
+      const baseR = 4.5 + Math.min(speed * 0.14, 5.5) + Math.random() * 2.5;
+      const aspect = Math.min(2.4, 1.6 + Math.min(speed * 0.03, 0.8));
+      pushBloom({
+        x: x + (Math.random() - 0.5) * 3,
+        y: y + (Math.random() - 0.5) * 3,
+        vx: Math.max(-2.6, Math.min(2.6, vxInit * 0.16)),
+        vy: Math.max(-2.6, Math.min(2.6, vyInit * 0.16)),
+        aspect,
+        kind,
+        baseRadius: baseR,
+        maxRadius: baseR * (2.15 + Math.random() * 0.45),
+        bornAt: now,
+        lifeMs: 6500 + Math.random() * 2000,
+        lobes: makeLobes(10, 0.82, 0.34),
+        peakAlpha: kind === 'water' ? 0.3 : 0.36,
+        rotation: angle + (Math.random() - 0.5) * 0.22,
+      });
+    };
+
     const spawnCluster = (
       x: number,
       y: number,
       angle: number,
       speed: number,
       now: number,
-      heavy = false
+      heavy = false,
+      vxInit = 0,
+      vyInit = 0
     ) => {
       const kind = nextKind();
       const baseR = heavy ? 18 + Math.random() * 10 : 12 + Math.min(speed * 0.22, 10) + Math.random() * 7;
@@ -274,6 +313,8 @@ export default function WatercolorDripCanvas({
           pushBloom({
             x: midX,
             y: midY,
+            vx: (vxInit + existing.vx) * 0.08,
+            vy: (vyInit + existing.vy) * 0.08,
             kind,
             baseRadius: bridgeBase,
             maxRadius: bridgeBase * (2.9 + Math.random() * 0.7),
@@ -291,6 +332,8 @@ export default function WatercolorDripCanvas({
       pushBloom({
         x,
         y,
+        vx: Math.max(-2.2, Math.min(2.2, vxInit * 0.14)),
+        vy: Math.max(-2.2, Math.min(2.2, vyInit * 0.14)),
         kind,
         baseRadius: baseR,
         maxRadius: maxR,
@@ -314,6 +357,8 @@ export default function WatercolorDripCanvas({
         pushBloom({
           x: fx,
           y: fy,
+          vx: Math.cos(spreadAngle) * (0.18 + Math.min(speed * 0.04, 0.9)),
+          vy: Math.sin(spreadAngle) * (0.18 + Math.min(speed * 0.04, 0.9)),
           kind: fKind,
           baseRadius: fr,
           maxRadius: fr * (2.3 + Math.random() * 0.85),
@@ -325,20 +370,24 @@ export default function WatercolorDripCanvas({
         });
       }
 
-      // Detach a gravity drip runner from the bottom edge of heavy/main drops
-      const startY = Math.min(height - 16, y + baseR * 0.48);
+      // Detach a gesture-carried gravity drip runner (arcs along cursor velocity then falls downward)
+      const startY = Math.min(height - 16, y + baseR * 0.42);
       if (startY < height - 24) {
+        const terminalVy = (heavy ? 1.35 : 0.95) + Math.random() * 1.05;
         pushDrip({
           x,
           y0: startY,
           headX: x,
           headY: startY,
-          vy: (heavy ? 1.35 : 0.95) + Math.random() * 1.05,
+          vx: Math.max(-4.2, Math.min(4.2, vxInit * 0.42)),
+          vy: Math.max(-2.2, Math.min(3.4, vyInit * 0.26 + terminalVy * 0.65)),
+          terminalVy,
+          traveled: 0,
           seed: Math.random() * 100,
           targetLength: (heavy ? 135 : 90) + Math.random() * 125,
           baseWidth: heavy ? 4.4 + Math.random() * 2.4 : 3.0 + Math.random() * 2.2,
           kind,
-          startAt: now + 240 + Math.random() * 90,
+          startAt: now + 180 + Math.random() * 90,
           lifeMs: 12000 + Math.random() * 3000,
           trail: [{ x, y: startY }],
           poolSpawned: false,
@@ -346,10 +395,19 @@ export default function WatercolorDripCanvas({
       }
     };
 
-    const drawBloom = (b: BloomDrop, now: number): boolean => {
+    const drawBloom = (b: BloomDrop, now: number, dtFrames: number): boolean => {
       const age = now - b.bornAt;
       if (age >= b.lifeMs) return false;
       if (age < 0) return true;
+
+      // Advect wet pigment slightly under wake/gesture momentum
+      if (Math.abs(b.vx) > 0.004 || Math.abs(b.vy) > 0.004) {
+        b.x = Math.max(4, Math.min(width - 4, b.x + b.vx * dtFrames));
+        b.y = Math.max(4, Math.min(height - 4, b.y + b.vy * dtFrames));
+        const drag = Math.pow(0.9, dtFrames);
+        b.vx *= drag;
+        b.vy *= drag;
+      }
 
       const t = age / b.lifeMs;
       // Fast capillary expansion over first ~950ms, then continuous slow outward bleed (+35%)
@@ -371,6 +429,9 @@ export default function WatercolorDripCanvas({
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(b.rotation);
+      if (b.aspect && b.aspect !== 1) {
+        ctx.scale(b.aspect, 1);
+      }
 
       const grad = ctx.createRadialGradient(0, 0, radius * 0.06, 0, 0, radius);
       if (isWater) {
@@ -421,14 +482,17 @@ export default function WatercolorDripCanvas({
       if (elapsed < 0) return true;
       if (elapsed >= d.lifeMs) return false;
 
-      const traveled = d.headY - d.y0;
-      const running = traveled < d.targetLength && d.headY < height - 10;
+      const running = d.traveled < d.targetLength && d.headY < height - 10;
 
       if (running) {
-        const step = d.vy * dtFrames;
-        const nextY = Math.min(height - 8, d.y0 + d.targetLength, d.headY + step);
-        const meander = Math.sin(nextY * 0.09 + d.seed) * 0.45 * dtFrames;
-        const nextX = d.headX + meander;
+        d.vx *= Math.pow(0.92, dtFrames);
+        d.vy += (d.terminalVy - d.vy) * Math.min(1, 0.08 * dtFrames);
+        const stepX =
+          d.vx * dtFrames + Math.sin(d.headY * 0.09 + d.seed) * 0.42 * dtFrames;
+        const stepY = d.vy * dtFrames;
+        const nextX = Math.max(8, Math.min(width - 8, d.headX + stepX));
+        const nextY = Math.max(8, Math.min(height - 8, d.headY + stepY));
+        d.traveled += Math.hypot(nextX - d.headX, nextY - d.headY);
         d.headX = nextX;
         d.headY = nextY;
 
@@ -442,6 +506,8 @@ export default function WatercolorDripCanvas({
         pushBloom({
           x: d.headX,
           y: d.headY,
+          vx: 0,
+          vy: 0,
           kind: d.kind,
           baseRadius: poolR,
           maxRadius: poolR * 2.6,
@@ -525,7 +591,7 @@ export default function WatercolorDripCanvas({
         ctx.clearRect(0, 0, width, height);
 
         for (let i = blooms.length - 1; i >= 0; i--) {
-          if (!drawBloom(blooms[i], now)) {
+          if (!drawBloom(blooms[i], now, dtFrames)) {
             blooms.splice(i, 1);
           }
         }
@@ -557,6 +623,77 @@ export default function WatercolorDripCanvas({
       };
     };
 
+    const applyCursorMove = (x: number, y: number, isTouch = false) => {
+      const now = performance.now();
+
+      if (!lastPointer) {
+        lastPointer = { x, y, time: now };
+        stationarySince = now;
+        lastHeldDripAt = now;
+        spawnCluster(x, y, Math.PI * 0.35, 14, now, false, 0.8, 0.5);
+        startLoop();
+        return;
+      }
+
+      const dx = x - lastPointer.x;
+      const dy = y - lastPointer.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 2) {
+        stationarySince = now;
+      }
+      if (dist < 1) {
+        startLoop();
+        return;
+      }
+
+      const dt = Math.max(8, now - lastPointer.time);
+      const speed = (dist / dt) * 16.67;
+      const vxNorm = (dx / dt) * 16.67;
+      const vyNorm = (dy / dt) * 16.67;
+      const angle = Math.atan2(dy, dx);
+
+      // Fluid wake advection: passing cursor nudges nearby wet blooms and falling drip arcs
+      const wakeRadius = 135;
+      for (let i = 0; i < blooms.length; i++) {
+        const b = blooms[i];
+        const distToBloom = Math.hypot(b.x - x, b.y - y);
+        if (distToBloom < wakeRadius) {
+          const falloff = Math.pow(1 - distToBloom / wakeRadius, 2);
+          b.vx = Math.max(-3.5, Math.min(3.5, b.vx + vxNorm * 0.14 * falloff));
+          b.vy = Math.max(-3.5, Math.min(3.5, b.vy + vyNorm * 0.14 * falloff));
+        }
+      }
+      for (let i = 0; i < drips.length; i++) {
+        const d = drips[i];
+        if (d.traveled >= d.targetLength) continue;
+        const distToHead = Math.hypot(d.headX - x, d.headY - y);
+        if (distToHead < wakeRadius) {
+          const falloff = Math.pow(1 - distToHead / wakeRadius, 2);
+          d.vx = Math.max(-4.5, Math.min(4.5, d.vx + vxNorm * 0.16 * falloff));
+          d.vy = Math.max(-2.5, Math.min(4.2, d.vy + vyNorm * 0.1 * falloff));
+        }
+      }
+
+      // Live brush-tip wet filament tracking the exact cursor path
+      motionAccum += dist;
+      if (motionAccum >= motionThreshold) {
+        spawnMotionBead(x, y, angle, speed, vxNorm, vyNorm, now);
+        motionAccum = 0;
+        motionThreshold = 10 + Math.random() * 4;
+      }
+
+      // Periodic main droplet + spatter fleck + gravity drip runner
+      accumDist += dist;
+      if (accumDist >= distThreshold) {
+        spawnCluster(x, y, angle, speed, now, false, vxNorm, vyNorm);
+        accumDist = 0;
+        distThreshold = (isTouch ? 36 : 32) + Math.random() * 23;
+      }
+
+      lastPointer = { x, y, time: now };
+      startLoop();
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       const pt = toLocal(e.clientX, e.clientY);
       if (!pt.inside) {
@@ -564,38 +701,8 @@ export default function WatercolorDripCanvas({
         lastPointer = null;
         return;
       }
-
       pointerInside = true;
-      const now = performance.now();
-
-      if (!lastPointer) {
-        lastPointer = { x: pt.x, y: pt.y, time: now };
-        stationarySince = now;
-        lastHeldDripAt = now;
-        spawnCluster(pt.x, pt.y, Math.PI * 0.25, 14, now, false);
-        startLoop();
-        return;
-      }
-
-      const dx = pt.x - lastPointer.x;
-      const dy = pt.y - lastPointer.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > 2) {
-        stationarySince = now;
-      }
-      accumDist += dist;
-
-      if (accumDist >= distThreshold) {
-        const dt = Math.max(8, now - lastPointer.time);
-        const speed = (dist / dt) * 16.67;
-        const angle = Math.atan2(dy, dx);
-        spawnCluster(pt.x, pt.y, angle, speed, now, false);
-        accumDist = 0;
-        distThreshold = 32 + Math.random() * 23;
-      }
-
-      lastPointer = { x: pt.x, y: pt.y, time: now };
-      startLoop();
+      applyCursorMove(pt.x, pt.y, false);
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -614,6 +721,7 @@ export default function WatercolorDripCanvas({
       pointerInside = false;
       lastPointer = null;
       accumDist = 0;
+      motionAccum = 0;
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -621,24 +729,7 @@ export default function WatercolorDripCanvas({
       if (!touch) return;
       const pt = toLocal(touch.clientX, touch.clientY);
       if (!pt.inside) return;
-      const now = performance.now();
-      if (!lastPointer) {
-        lastPointer = { x: pt.x, y: pt.y, time: now };
-        spawnCluster(pt.x, pt.y, Math.PI * 0.5, 16, now, false);
-        startLoop();
-        return;
-      }
-      const dx = pt.x - lastPointer.x;
-      const dy = pt.y - lastPointer.y;
-      const dist = Math.hypot(dx, dy);
-      accumDist += dist;
-      if (accumDist >= distThreshold) {
-        spawnCluster(pt.x, pt.y, Math.atan2(dy, dx), dist, now, false);
-        accumDist = 0;
-        distThreshold = 32 + Math.random() * 23;
-      }
-      lastPointer = { x: pt.x, y: pt.y, time: now };
-      startLoop();
+      applyCursorMove(pt.x, pt.y, true);
     };
 
     const seedAmbientClusters = () => {
