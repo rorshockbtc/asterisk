@@ -134,7 +134,7 @@ export default function WetBrushCanvas({
         bornAt: now,
         lifeMs: 3400 + Math.random() * 900,
         lobes,
-        peakAlpha: 0.16 + Math.random() * 0.07,
+        peakAlpha: 0.095 + Math.random() * 0.045,
       });
     };
 
