@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import Link from 'next/link';
+import { useScroll, useTransform } from 'framer-motion';
 import { Eyebrow, FadeUp } from 'accent-ui';
 import SiteHeader from '@/components/site/SiteHeader';
 import SiteFooter from '@/components/site/SiteFooter';
+import WatercolorSky from '@/art/WatercolorSky';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
 
@@ -106,28 +108,45 @@ const SHORTLIST: { artist: string; origin: string; verdict: string; note: string
 ];
 
 export default function ColophonView() {
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ['start start', 'end start'],
+  });
+  const skyProgress = useTransform(scrollYProgress, [0, 1], [0.1, 0.85]);
+
   return (
     <>
       <SiteHeader />
 
       <main className="bg-[var(--a-bg)] text-[var(--a-ink)]">
-        {/* Hero Essay Masthead */}
-        <section className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12 pt-28 sm:pt-36 pb-16 sm:pb-24 border-b border-[var(--a-rule)]">
-          <FadeUp immediate className="max-w-[56rem] space-y-6">
-            <Eyebrow mark="*" color="var(--a-accent)">
-              Colophon &amp; Art Direction
-            </Eyebrow>
-            <h1 className="font-display text-huge font-bold text-[var(--a-ink)]">
-              Print is the sans-serif.{' '}
-              <span className="font-serif italic font-normal">Watercolor is the serif.</span>
-            </h1>
-            <p className="max-w-[52ch] text-lg sm:text-xl leading-relaxed text-[var(--a-ink)]/80">
-              Colon Hyphen Bracket&apos;s flagship site is built like printmaking: engineered, crisp,
-              bold grotesque type beside Guy Billout&apos;s precise plates. asterisk is its
-              watercolor companion—sharing the typographic spine while letting the art bleed, drift,
-              and respond to your hand.
-            </p>
-          </FadeUp>
+        {/* Hero Essay Masthead with subtle scroll-reactive watercolor wash */}
+        <section
+          ref={heroRef}
+          className="relative overflow-hidden border-b border-[var(--a-rule)]"
+        >
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-50">
+            <WatercolorSky progress={skyProgress} fallbackSrc={ART.sky.src} />
+            <div className="absolute inset-0 bg-gradient-to-b from-[var(--a-bg)]/55 via-transparent to-[var(--a-bg)]" />
+          </div>
+
+          <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12 pt-28 sm:pt-36 pb-16 sm:pb-24">
+            <FadeUp immediate className="max-w-[56rem] space-y-6">
+              <Eyebrow mark="*" color="var(--a-accent)">
+                Colophon &amp; Art Direction
+              </Eyebrow>
+              <h1 className="font-display text-huge font-bold text-[var(--a-ink)]">
+                Print is the sans-serif.{' '}
+                <span className="font-serif italic font-normal">Watercolor is the serif.</span>
+              </h1>
+              <p className="max-w-[52ch] text-lg sm:text-xl leading-relaxed text-[var(--a-ink)]/85">
+                Colon Hyphen Bracket&apos;s flagship site is built like printmaking: engineered, crisp,
+                bold grotesque type beside Guy Billout&apos;s precise plates. asterisk is its
+                watercolor companion—sharing the typographic spine while letting the art bleed, drift,
+                and respond to your hand.
+              </p>
+            </FadeUp>
+          </div>
         </section>
 
         {/* Section 1: Hero Plate & Why Folon */}
