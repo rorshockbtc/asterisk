@@ -11,6 +11,17 @@ interface Rgb {
 
 type DropKind = 'yellow' | 'cyan' | 'rose' | 'water';
 
+interface SatelliteFleck {
+  ox: number;
+  oy: number;
+  vx: number;
+  vy: number;
+  r: number;
+  maxScale: number;
+  aspect: number;
+  angle: number;
+}
+
 interface BloomDrop {
   x: number;
   y: number;
@@ -23,11 +34,13 @@ interface BloomDrop {
   bornAt: number;
   lifeMs: number;
   morphMs: number;
+  evaporateAt?: number;
   lobes: number[];
   peakAlpha: number;
   rotation: number;
   customMix?: { core: Rgb; ring: Rgb; rawCore: Rgb };
   isBridge?: boolean;
+  flecks?: SatelliteFleck[];
 }
 
 interface DripPoint {
@@ -50,6 +63,7 @@ interface GravityDrip {
   startAt: number;
   lifeMs: number;
   morphMs: number;
+  evaporateAt?: number;
   trail: DripPoint[];
   poolSpawned: boolean;
   isFlick?: boolean;
@@ -78,6 +92,23 @@ function lerpRgb(a: Rgb, b: Rgb, t: number): Rgb {
     g: Math.round(a.g + (b.g - a.g) * c),
     b: Math.round(a.b + (b.b - a.b) * c),
   };
+}
+
+function scheduleSoftEvaporate<T extends { evaporateAt?: number }>(
+  list: T[],
+  softCap: number,
+  now: number
+) {
+  let remainingActive = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].evaporateAt === undefined) remainingActive += 1;
+  }
+  for (let i = 0; i < list.length && remainingActive > softCap; i++) {
+    if (list[i].evaporateAt === undefined) {
+      list[i].evaporateAt = now;
+      remainingActive -= 1;
+    }
+  }
 }
 
 function getRawPigment(kind: DropKind): { core: Rgb; ring: Rgb } {
@@ -283,22 +314,18 @@ export default function WatercolorDripCanvas({
     };
 
     const pushBloom = (bloom: BloomDrop) => {
-      if (blooms.length >= 220) {
-        blooms.splice(0, blooms.length - 219);
-      }
       blooms.push(bloom);
+      scheduleSoftEvaporate(blooms, 280, bloom.bornAt);
     };
 
     const pushDrip = (drip: GravityDrip) => {
-      if (drips.length >= 65) {
-        drips.splice(0, drips.length - 64);
-      }
       drips.push(drip);
+      scheduleSoftEvaporate(drips, 85, drip.startAt);
     };
 
     const pushRing = (ring: ShockRing) => {
-      if (rings.length >= 8) {
-        rings.splice(0, rings.length - 7);
+      if (rings.length >= 10) {
+        rings.splice(0, rings.length - 9);
       }
       rings.push(ring);
     };
@@ -361,6 +388,26 @@ export default function WatercolorDripCanvas({
             ? 1.55 + Math.random() * 0.8
             : 1.18 + ((speed - 4) / 12) * 0.37;
 
+      // Pack radial brush-fleck spatter inside the parent cluster so 5× more droplets coexist cleanly
+      const fleckCount = heavy ? 4 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 4);
+      const minReach = isSlow ? 16 : 35;
+      const maxExtraReach = isSlow ? 28 : Math.min(70, 24 + speed * 2.1);
+      const flecks: SatelliteFleck[] = [];
+      for (let i = 0; i < fleckCount; i++) {
+        const spreadAngle = angle + (Math.random() - 0.5) * (isFast ? 1.25 : 1.7);
+        const reach = minReach + Math.random() * maxExtraReach;
+        flecks.push({
+          ox: Math.cos(spreadAngle) * reach + (Math.random() - 0.5) * 14,
+          oy: Math.sin(spreadAngle) * reach + (Math.random() - 0.5) * 14,
+          vx: Math.cos(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
+          vy: Math.sin(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
+          r: 2.5 + Math.random() * 5.2,
+          maxScale: 2.4 + Math.random() * 0.85,
+          aspect: isFast ? 1.25 + Math.random() * 0.45 : 1,
+          angle: spreadAngle,
+        });
+      }
+
       spawnBridgeMatches(x, y, baseR, kind, now, 3);
 
       pushBloom({
@@ -378,37 +425,8 @@ export default function WatercolorDripCanvas({
         lobes: makeLobes(12),
         peakAlpha: kind === 'water' ? 0.46 : heavy ? 0.58 : 0.5,
         rotation: angle + (Math.random() - 0.5) * 0.25,
+        flecks,
       });
-
-      // Radial brush-fleck spatter thrown further forward on fast sweeps
-      const fleckCount = heavy ? 4 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 5);
-      const minReach = isSlow ? 16 : 35;
-      const maxExtraReach = isSlow ? 28 : Math.min(70, 24 + speed * 2.1);
-      for (let i = 0; i < fleckCount; i++) {
-        const spreadAngle = angle + (Math.random() - 0.5) * (isFast ? 1.25 : 1.7);
-        const reach = minReach + Math.random() * maxExtraReach;
-        const fx = x + Math.cos(spreadAngle) * reach + (Math.random() - 0.5) * 14;
-        const fy = y + Math.sin(spreadAngle) * reach + (Math.random() - 0.5) * 14;
-        const fr = 2.5 + Math.random() * 5.2;
-        const fKind = Math.random() < 0.3 ? DROP_KINDS[(kindCursor + i) % DROP_KINDS.length] : kind;
-
-        pushBloom({
-          x: fx,
-          y: fy,
-          vx: Math.cos(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
-          vy: Math.sin(spreadAngle) * (0.22 + Math.min(speed * 0.04, 1.1)),
-          aspect: isFast ? 1.25 + Math.random() * 0.45 : 1,
-          kind: fKind,
-          baseRadius: fr,
-          maxRadius: fr * (2.4 + Math.random() * 0.85),
-          bornAt: now + 25 + i * 28,
-          lifeMs: 11500 + Math.random() * 3500,
-          morphMs: 4800 + Math.random() * 1200,
-          lobes: makeLobes(10, 0.74, 0.5),
-          peakAlpha: 0.44 + Math.random() * 0.14,
-          rotation: spreadAngle,
-        });
-      }
 
       // Release directional runner selectively (~45% of moving drops, always on heavy drips)
       if (heavy || Math.random() < 0.45) {
@@ -562,16 +580,32 @@ export default function WatercolorDripCanvas({
       }
 
       const t = age / b.lifeMs;
+      let evapT = 0;
+      if (b.evaporateAt !== undefined) {
+        evapT = Math.min(1, Math.max(0, (now - b.evaporateAt) / 2600));
+        if (evapT >= 1) return false;
+      }
+
       const spreadT = Math.min(1, age / 1100);
       const fastEase = 1 - Math.pow(1 - spreadT, 2.8);
       const slowDrift =
         spreadT >= 1 ? ((t - 1100 / b.lifeMs) / Math.max(0.01, 1 - 1100 / b.lifeMs)) * 0.42 : 0;
-      const radius = b.baseRadius + (b.maxRadius - b.baseRadius) * Math.min(1.42, fastEase + slowDrift);
+      const naturalSwell = t > 0.68 ? 1 + smoothstep(0.68, 1.0, t) * 0.32 : 1;
+      const evapSwell = 1 + 0.42 * smoothstep(0, 1, evapT);
+      const swell = naturalSwell * evapSwell;
+      const radius =
+        (b.baseRadius + (b.maxRadius - b.baseRadius) * Math.min(1.42, fastEase + slowDrift)) * swell;
 
       const fadeIn = Math.min(1, age / 120);
-      const fadeOut = t > 0.74 ? Math.pow(1 - (t - 0.74) / 0.26, 1.35) : 1;
-      const alpha = b.peakAlpha * fadeIn * fadeOut;
-      if (alpha <= 0.004) return true;
+      const naturalFade = t > 0.68 ? Math.pow(1 - (t - 0.68) / 0.32, 1.45) : 1;
+      const evapFade = b.evaporateAt !== undefined ? Math.pow(1 - evapT, 1.75) : 1;
+      const dissolveMul = naturalFade * evapFade;
+      const alpha = b.peakAlpha * fadeIn * dissolveMul;
+      if (alpha <= 0.003) return b.evaporateAt === undefined;
+
+      // Soften the wet-edge ring into the interior wash as the bloom melts into paper
+      const dissolveBlend = Math.min(1, (t > 0.68 ? smoothstep(0.68, 1.0, t) : 0) + evapT);
+      const ringStrength = 1 - 0.42 * dissolveBlend;
 
       // Slow pigment morph (~5s): raw hue evolves gradually into reacted wash hue
       const morphT = smoothstep(0, b.morphMs, age);
@@ -603,14 +637,14 @@ export default function WatercolorDripCanvas({
       if (isWater) {
         grad.addColorStop(0, `rgba(${core.r}, ${core.g}, ${core.b}, ${(alpha * 0.62).toFixed(4)})`);
         grad.addColorStop(0.55, `rgba(${core.r}, ${core.g}, ${core.b}, ${(alpha * 0.25).toFixed(4)})`);
-        grad.addColorStop(0.76, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.85).toFixed(4)})`);
-        grad.addColorStop(0.9, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.38).toFixed(4)})`);
+        grad.addColorStop(0.76, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.85 * ringStrength).toFixed(4)})`);
+        grad.addColorStop(0.9, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.38 * ringStrength).toFixed(4)})`);
         grad.addColorStop(1, `rgba(${ring.r}, ${ring.g}, ${ring.b}, 0)`);
       } else {
         grad.addColorStop(0, `rgba(${core.r}, ${core.g}, ${core.b}, ${(alpha * 0.45).toFixed(4)})`);
         grad.addColorStop(0.62, `rgba(${core.r}, ${core.g}, ${core.b}, ${(alpha * 0.6).toFixed(4)})`);
-        grad.addColorStop(0.78, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.96).toFixed(4)})`);
-        grad.addColorStop(0.91, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.46).toFixed(4)})`);
+        grad.addColorStop(0.78, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.96 * ringStrength).toFixed(4)})`);
+        grad.addColorStop(0.91, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(alpha * 0.46 * ringStrength).toFixed(4)})`);
         grad.addColorStop(1, `rgba(${ring.r}, ${ring.g}, ${ring.b}, 0)`);
       }
 
@@ -638,6 +672,39 @@ export default function WatercolorDripCanvas({
       ctx.closePath();
       ctx.fill();
       ctx.restore();
+
+      // Render packed satellite flecks cleanly without bloating blooms[]
+      if (b.flecks && b.flecks.length > 0) {
+        const fFadeIn = Math.min(1, Math.max(0, (age - 30) / 140));
+        const fAlpha = alpha * fFadeIn;
+        if (fAlpha > 0.004) {
+          const fDrag = Math.pow(0.94, dtFrames);
+          for (let i = 0; i < b.flecks.length; i++) {
+            const f = b.flecks[i];
+            f.ox += f.vx * dtFrames;
+            f.oy += f.vy * dtFrames;
+            f.vx *= fDrag;
+            f.vy *= fDrag;
+            const fr = f.r * (1 + (f.maxScale - 1) * fastEase) * swell;
+            const fx = b.x + f.ox;
+            const fy = b.y + f.oy;
+
+            ctx.save();
+            ctx.translate(fx, fy);
+            ctx.rotate(f.angle);
+            if (f.aspect !== 1) ctx.scale(f.aspect, 1);
+            const fGrad = ctx.createRadialGradient(0, 0, fr * 0.1, 0, 0, fr);
+            fGrad.addColorStop(0, `rgba(${core.r}, ${core.g}, ${core.b}, ${(fAlpha * 0.58).toFixed(4)})`);
+            fGrad.addColorStop(0.74, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${(fAlpha * 0.9 * ringStrength).toFixed(4)})`);
+            fGrad.addColorStop(1, `rgba(${ring.r}, ${ring.g}, ${ring.b}, 0)`);
+            ctx.fillStyle = fGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, fr, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
       return true;
     };
 
@@ -645,6 +712,12 @@ export default function WatercolorDripCanvas({
       const elapsed = now - d.startAt;
       if (elapsed < 0) return true;
       if (elapsed >= d.lifeMs) return false;
+
+      let evapT = 0;
+      if (d.evaporateAt !== undefined) {
+        evapT = Math.min(1, Math.max(0, (now - d.evaporateAt) / 2600));
+        if (evapT >= 1) return false;
+      }
 
       const curSpeed = Math.hypot(d.vx, d.vy);
       const running =
@@ -701,8 +774,14 @@ export default function WatercolorDripCanvas({
       }
 
       const lifeT = elapsed / d.lifeMs;
-      const alpha = 0.64 * (lifeT > 0.74 ? Math.pow(1 - (lifeT - 0.74) / 0.26, 1.35) : 1);
-      if (alpha <= 0.005 || d.trail.length < 2) return true;
+      const naturalFade = lifeT > 0.68 ? Math.pow(1 - (lifeT - 0.68) / 0.32, 1.45) : 1;
+      const evapFade = d.evaporateAt !== undefined ? Math.pow(1 - evapT, 1.75) : 1;
+      const alpha = 0.64 * naturalFade * evapFade;
+      if (alpha <= 0.003 || d.trail.length < 2) return d.evaporateAt === undefined;
+
+      const naturalWidthSwell = lifeT > 0.68 ? 1 + smoothstep(0.68, 1.0, lifeT) * 0.24 : 1;
+      const evapWidthSwell = 1 + 0.42 * smoothstep(0, 1, evapT);
+      const widthSwell = naturalWidthSwell * evapWidthSwell;
 
       const morphT = smoothstep(0, d.morphMs, elapsed);
       const raw = getRawPigment(d.kind);
@@ -724,7 +803,7 @@ export default function WatercolorDripCanvas({
 
         const taper = d.isFlick ? 1 - progress * 0.72 : 0.45 + 0.55 * (1 - progress * 0.45);
         ctx.strokeStyle = `rgba(${segColor.r}, ${segColor.g}, ${segColor.b}, ${(alpha * (0.55 + progress * 0.45)).toFixed(4)})`;
-        ctx.lineWidth = Math.max(1.2, d.baseWidth * taper);
+        ctx.lineWidth = Math.max(1.2, d.baseWidth * taper * widthSwell);
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
         ctx.lineTo(p1.x, p1.y);
@@ -734,7 +813,7 @@ export default function WatercolorDripCanvas({
       const headMix = mixPigment(d.kind, d.headY / Math.max(height, 1));
       const headCore = lerpRgb(raw.core, headMix.core, morphT);
       const headRing = lerpRgb(raw.ring, headMix.ring, morphT);
-      const beadR = d.baseWidth * (running ? (d.isFlick ? 0.75 : 0.92) : 0.72);
+      const beadR = d.baseWidth * (running ? (d.isFlick ? 0.75 : 0.92) : 0.72) * widthSwell;
       const beadGrad = ctx.createRadialGradient(
         d.headX,
         d.headY,

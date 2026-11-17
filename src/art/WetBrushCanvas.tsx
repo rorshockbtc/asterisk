@@ -30,8 +30,31 @@ interface BrushDab {
   color: Rgb;
   bornAt: number;
   lifeMs: number;
+  evaporateAt?: number;
   lobes: number[];
   peakAlpha: number;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / Math.max(0.0001, edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function scheduleSoftEvaporate<T extends { evaporateAt?: number }>(
+  list: T[],
+  softCap: number,
+  now: number
+) {
+  let remainingActive = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].evaporateAt === undefined) remainingActive += 1;
+  }
+  for (let i = 0; i < list.length && remainingActive > softCap; i++) {
+    if (list[i].evaporateAt === undefined) {
+      list[i].evaporateAt = now;
+      remainingActive -= 1;
+    }
+  }
 }
 
 function lerpColor(a: Rgb, b: Rgb, t: number): Rgb {
@@ -106,10 +129,6 @@ export default function WetBrushCanvas({
       now: number,
       boost = 1
     ) => {
-      if (dabs.length > 220) {
-        dabs.splice(0, dabs.length - 220);
-      }
-
       const angle = Math.atan2(dy, dx);
       const color = samplePalette(totalDistance);
       const clampSpeed = Math.min(speed, 48);
@@ -136,6 +155,7 @@ export default function WetBrushCanvas({
         lobes,
         peakAlpha: 0.095 + Math.random() * 0.045,
       });
+      scheduleSoftEvaporate(dabs, 320, now);
     };
 
     const drawDab = (dab: BrushDab, now: number): boolean => {
@@ -143,16 +163,25 @@ export default function WetBrushCanvas({
       if (age >= dab.lifeMs) return false;
       if (age < 0) return true;
 
+      let evapT = 0;
+      if (dab.evaporateAt !== undefined) {
+        evapT = Math.min(1, Math.max(0, (now - dab.evaporateAt) / 2000));
+        if (evapT >= 1) return false;
+      }
+
       const t = age / dab.lifeMs;
-      // Fast wet capillary bloom in the first 40%, gentle dispersion afterward
+      // Fast wet capillary bloom in first 40%, natural bloom-out swell afterward & during dissolve
       const spreadEase = 1 - Math.pow(1 - t, 2.4);
-      const radius = dab.baseRadius * (1 + (dab.maxSpread - 1) * spreadEase);
+      const naturalSwell = t > 0.65 ? 1 + smoothstep(0.65, 1.0, t) * 0.28 : 1;
+      const evapSwell = 1 + 0.38 * smoothstep(0, 1, evapT);
+      const radius = dab.baseRadius * (1 + (dab.maxSpread - 1) * spreadEase) * naturalSwell * evapSwell;
 
       // Smooth fade-in (first 8%) then slow watercolor evaporation
       const fadeIn = Math.min(1, t / 0.08);
       const fadeOut = Math.pow(1 - t, 1.65);
-      const alpha = dab.peakAlpha * fadeIn * fadeOut;
-      if (alpha <= 0.003) return true;
+      const evapFade = dab.evaporateAt !== undefined ? Math.pow(1 - evapT, 1.75) : 1;
+      const alpha = dab.peakAlpha * fadeIn * fadeOut * evapFade;
+      if (alpha <= 0.003) return dab.evaporateAt === undefined;
 
       const driftFrames = age / 16.67;
       const cx = dab.x + dab.vx * driftFrames * 0.35;

@@ -97,6 +97,10 @@ export default function SiteHeader() {
     if (mobileMenuRef.current) mobileMenuRef.current.open = false;
   }
 
+  function scrollTopInstant() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-300 ${
@@ -108,6 +112,8 @@ export default function SiteHeader() {
       <div className="mx-auto flex h-16 sm:h-20 max-w-[1400px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
         <Link
           href="/"
+          scroll
+          onClick={scrollTopInstant}
           className="inline-flex min-h-[44px] items-center gap-1.5 font-display text-[22px] sm:text-2xl font-bold tracking-[-0.04em] text-[var(--a-ink)] no-underline"
         >
           asterisk
@@ -144,6 +150,8 @@ export default function SiteHeader() {
           })}
           <Link
             href="/colophon"
+            scroll
+            onClick={scrollTopInstant}
             data-active={pathname === '/colophon' ? 'true' : undefined}
             aria-current={pathname === '/colophon' ? 'page' : undefined}
             className={`wc-link inline-flex min-h-[44px] items-center whitespace-nowrap ${
@@ -183,7 +191,11 @@ export default function SiteHeader() {
               ))}
               <Link
                 href="/colophon"
-                onClick={closeMobileMenu}
+                scroll
+                onClick={() => {
+                  closeMobileMenu();
+                  scrollTopInstant();
+                }}
                 className="flex min-h-[44px] items-center rounded-xl px-3 text-[14px] font-medium text-[var(--a-ink)] no-underline hover:bg-[var(--a-surface)]"
               >
                 Colophon

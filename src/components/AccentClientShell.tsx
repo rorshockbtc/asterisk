@@ -1,12 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { MotionProvider } from 'accent-ui/motion';
 
 /**
  * Client boundary wrapping Accént's MotionProvider (`LazyMotion` + reduced-motion sync)
- * because `accent-ui/dist/index.mjs` omits a top-level `"use client"` banner.
+ * and resetting scroll to the top whenever navigating across routes without a hash anchor.
  */
 export default function AccentClientShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.location.hash) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [pathname]);
+
   return <MotionProvider>{children}</MotionProvider>;
 }
