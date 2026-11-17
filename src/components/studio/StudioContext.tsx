@@ -101,6 +101,7 @@ interface StudioContextValue {
   handleCopyReplyOnly: (p: PlatformId) => Promise<void>;
   handleCopyAndLog: (p: PlatformId, openTab: boolean) => Promise<boolean>;
   handleAutoPublish: (p: PlatformId) => Promise<boolean>;
+  handleAutoPublishMany: (platforms: PlatformId[]) => Promise<void>;
   handleToggleChecklist: (step: ChecklistStep) => Promise<void>;
   handleSavePlatformSetting: (p: PlatformId, handle: string, cadenceDays: number) => Promise<void>;
 }
@@ -603,6 +604,47 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     [isPublishing, refreshStudio, saveBroadcastInternal, variants]
   );
 
+  const handleAutoPublishMany = useCallback(
+    async (platforms: PlatformId[]) => {
+      if (platforms.length === 0 || isPublishing) return;
+      setIsPublishing(true);
+      try {
+        const broadcastId = await saveBroadcastInternal();
+        if (!broadcastId) return;
+
+        const results = await Promise.all(
+          platforms.map(async (p) => {
+            const cur = variants[p];
+            const bodyText = cur?.body_text?.trim() || '';
+            if (!bodyText) return `${PLATFORM_SPECS[p].shortName}: empty`;
+            const res = await fetch('/api/publish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                broadcastId,
+                platform: p,
+                bodyText,
+                replyText: cur.reply_text,
+                mode: 'api',
+              }),
+            });
+            const data = await res.json();
+            return `${PLATFORM_SPECS[p].shortName}: ${data.ok ? 'published' : data.message || 'failed'}`;
+          })
+        );
+        await refreshStudio(broadcastId);
+        setStatusLinks([]);
+        setStatusMessage(results.join(' · '));
+      } catch (err) {
+        setStatusLinks([]);
+        setStatusMessage(err instanceof Error ? err.message : 'Batch publish error');
+      } finally {
+        setIsPublishing(false);
+      }
+    },
+    [isPublishing, refreshStudio, saveBroadcastInternal, variants]
+  );
+
   const handleToggleChecklist = useCallback(
     async (step: ChecklistStep) => {
       const nextVal = !Boolean(step.completed);
@@ -677,6 +719,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         handleCopyReplyOnly,
         handleCopyAndLog,
         handleAutoPublish,
+        handleAutoPublishMany,
         handleToggleChecklist,
         handleSavePlatformSetting,
       }}

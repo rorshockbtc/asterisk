@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PLATFORM_ORDER, type PlatformId } from '@/lib/platforms';
+import { getPlatformConnection, type OAuthPlatform } from '@/lib/oauth-connections';
 import { dispatchVariant } from '@/lib/publishers';
 import {
   markVariantPublished,
@@ -46,7 +47,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
     }
 
-    const result = await dispatchVariant({ platform, bodyText, replyText, mode });
+    const oauthPlatforms: OAuthPlatform[] = ['threads', 'x', 'facebook', 'instagram'];
+    const connection =
+      mode === 'api' && oauthPlatforms.includes(platform as OAuthPlatform)
+        ? await getPlatformConnection(owner.ownerKey, platform as OAuthPlatform)
+        : null;
+
+    const result = await dispatchVariant({
+      platform,
+      bodyText,
+      replyText,
+      mode,
+      connection,
+    });
 
     if (result.ok) {
       await markVariantPublished(

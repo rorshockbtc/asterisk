@@ -61,7 +61,10 @@ export default function CalmStudio() {
     handleCopyReplyOnly,
     handleCopyAndLog,
     handleAutoPublish,
+    handleAutoPublishMany,
   } = useStudio();
+
+  const [selectedTargets, setSelectedTargets] = useState<PlatformId[]>([]);
 
   const [extensionNote, setExtensionNote] = useState('');
   const [pendingInbound, setPendingInbound] = useState<{
@@ -530,6 +533,52 @@ export default function CalmStudio() {
               {activeApi?.note || 'Copy-ready'}
             </span>
           </div>
+
+          {(() => {
+            const connectedPlatforms = PLATFORM_ORDER.filter((pid) => apiStatus?.[pid]?.configured);
+            if (connectedPlatforms.length === 0) return null;
+            const activeTargets = selectedTargets.filter((pid) => connectedPlatforms.includes(pid));
+            return (
+              <div className="border-t border-[var(--a-rule)] pt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-sans text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--a-muted)] mr-1">
+                    Transmit to:
+                  </span>
+                  {connectedPlatforms.map((pid) => {
+                    const checked = activeTargets.includes(pid);
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        onClick={() =>
+                          setSelectedTargets((prev) =>
+                            prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]
+                          )
+                        }
+                        className={`min-h-[32px] rounded-full border px-3 text-[13px] font-medium cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-white'
+                            : 'border-[var(--a-rule)] text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)]'
+                        }`}
+                      >
+                        {PLATFORM_SPECS[pid].shortName}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  disabled={isPublishing || activeTargets.length === 0}
+                  onClick={() => handleAutoPublishMany(activeTargets)}
+                  className="min-h-[36px] rounded-full border border-[var(--a-ink)] px-4 text-[13px] font-semibold text-[var(--a-ink)] hover:bg-[var(--a-ink)] hover:text-white disabled:opacity-40 cursor-pointer transition-colors"
+                >
+                  {isPublishing
+                    ? 'Transmitting…'
+                    : `Publish to selected (${activeTargets.length}) →`}
+                </button>
+              </div>
+            );
+          })()}
         </div>
       </section>
     </div>

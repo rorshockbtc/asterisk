@@ -4,6 +4,7 @@ import {
   type MediaAttachment,
 } from '@/lib/platforms';
 import { getApiConnectionStatus } from '@/lib/publishers';
+import { listPlatformConnections } from '@/lib/oauth-connections';
 import {
   deleteBroadcast,
   loadWorkspace,
@@ -19,10 +20,14 @@ export async function GET() {
       return NextResponse.json({ error: owner.error }, { status: owner.status });
     }
 
-    const workspace = await loadWorkspace(owner.ownerKey);
+    const [workspace, connections] = await Promise.all([
+      loadWorkspace(owner.ownerKey),
+      listPlatformConnections(owner.ownerKey),
+    ]);
     return NextResponse.json({
       ...workspace,
-      apiStatus: getApiConnectionStatus(),
+      connections,
+      apiStatus: getApiConnectionStatus(connections),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load workspace';

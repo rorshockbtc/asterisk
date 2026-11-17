@@ -402,21 +402,19 @@ export default function CalmSetup() {
         </section>
       )}
 
-      {/* Step 3: Non-technical Pipes Connected Auto-Publishing + collapsed developer option */}
+      {/* Step 3: Direct OAuth Connections + Multi-platform Auto-Publishing */}
       {step === 'publishing' && (
         <section role="tabpanel" aria-labelledby={`${tabsId}-tab-publishing`} className="space-y-6">
           <div className="border-l-2 border-[var(--a-accent)] bg-[var(--a-surface)] px-5 py-4 space-y-2">
             <h2 className="font-display text-lg font-bold text-[var(--a-ink)]">
-              1-click Pipes account connection (coming with Pipes sign-in)
+              Connect your social accounts for 1-click publishing
             </h2>
             <p className="text-[15px] leading-relaxed text-[var(--a-ink)]/80">
-              You never have to touch API code or developer tokens. When you connect Threads or X
-              inside your Pipes account, <strong>Publish</strong> sends your thought straight from
-              the sheet—and automatically posts your Threads self-reply link right after.
+              Connect Threads, X, Facebook Page, or Instagram below. Once connected, you can select
+              one or multiple platforms in the studio and transmit directly.
             </p>
             <p className="text-[14px] text-[var(--a-muted)]">
-              Meanwhile, <strong>Copy &amp; Open</strong> already works for every single room today
-              by opening that network&apos;s composer with your tuned wording ready to paste.
+              Substack has no public posting API, so it continues to use <strong>Copy &amp; Open</strong>.
             </p>
           </div>
 
@@ -424,25 +422,61 @@ export default function CalmSetup() {
             {PLATFORM_ORDER.map((pid) => {
               const spec = PLATFORM_SPECS[pid];
               const api = apiStatus?.[pid];
+              const connectHref =
+                pid === 'threads'
+                  ? '/api/auth/threads/connect'
+                  : pid === 'x'
+                    ? '/api/auth/x/connect'
+                    : pid === 'facebook' || pid === 'instagram'
+                      ? '/api/auth/meta/connect'
+                      : null;
+
               return (
                 <li key={pid} className="flex flex-wrap items-center justify-between gap-3 py-4">
                   <div>
                     <span className="font-display text-base font-bold text-[var(--a-ink)] block">
                       {spec.name}
                     </span>
-                    <span className="text-[13px] text-[var(--a-muted)]">
-                      {pid === 'threads' || pid === 'x'
-                        ? 'Supports 1-click direct publishing via Pipes + Copy & Open'
-                        : 'Works via safe 1-click Copy & Open in browser'}
+                    <span
+                      className={`text-[13px] ${
+                        api?.configured ? 'text-[var(--a-emerald)] font-medium' : 'text-[var(--a-muted)]'
+                      }`}
+                    >
+                      {api?.note || 'Copy & Open ready'}
                     </span>
                   </div>
-                  <span
-                    className={`font-sans text-[13px] font-medium ${
-                      api?.configured ? 'text-[var(--a-emerald)]' : 'text-[var(--a-muted)]'
-                    }`}
-                  >
-                    {api?.note || 'Copy & Open ready'}
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {connectHref ? (
+                      api?.configured ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await fetch('/api/auth/disconnect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ platform: pid }),
+                            });
+                            window.location.reload();
+                          }}
+                          className="min-h-[38px] rounded-full border border-[var(--a-rule)] px-4 text-[13px] font-medium text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)] cursor-pointer"
+                        >
+                          Disconnect
+                        </button>
+                      ) : (
+                        <a
+                          href={connectHref}
+                          className="inline-flex min-h-[38px] items-center rounded-full bg-[var(--a-ink)] px-4 text-[13px] font-semibold text-white hover:opacity-90 no-underline"
+                        >
+                          Connect {spec.shortName}
+                        </a>
+                      )
+                    ) : (
+                      <span className="font-sans text-[13px] text-[var(--a-muted)]">
+                        Copy &amp; Open
+                      </span>
+                    )}
+                  </div>
                 </li>
               );
             })}

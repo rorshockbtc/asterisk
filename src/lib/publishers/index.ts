@@ -1,4 +1,9 @@
 import { splitIntoXThread, type PlatformId } from '../platforms';
+import type {
+  OAuthPlatform,
+  PlatformConnectionRecord,
+  PublicPlatformConnection,
+} from '../oauth-connections';
 
 export interface PublishAttemptResult {
   ok: boolean;
@@ -8,34 +13,57 @@ export interface PublishAttemptResult {
   message: string;
 }
 
-export function getApiConnectionStatus(): Record<PlatformId, { configured: boolean; note: string }> {
-  const threadsReady = Boolean(process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID);
-  const xReady = Boolean(process.env.X_ACCESS_TOKEN);
+export function getApiConnectionStatus(
+  connections?: Partial<Record<OAuthPlatform, PublicPlatformConnection>>
+): Record<PlatformId, { configured: boolean; note: string; handle?: string | null }> {
+  const threadsOAuth = connections?.threads?.connected;
+  const xOAuth = connections?.x?.connected;
+  const fbOAuth = connections?.facebook?.connected;
+  const igOAuth = connections?.instagram?.connected;
+
+  const threadsReady = Boolean(
+    threadsOAuth || (process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID)
+  );
+  const xReady = Boolean(xOAuth || process.env.X_ACCESS_TOKEN);
+  const fbReady = Boolean(fbOAuth);
+  const igReady = Boolean(igOAuth);
 
   return {
     threads: {
       configured: threadsReady,
-      note: threadsReady
-        ? 'Threads Graph API live (supports self-reply links)'
-        : 'Copy-ready today (optional THREADS_ACCESS_TOKEN + THREADS_USER_ID in .env.local)',
+      handle: connections?.threads?.accountHandle ?? null,
+      note: threadsOAuth
+        ? `Connected as ${connections?.threads?.accountHandle || 'Threads account'}`
+        : threadsReady
+          ? 'Threads Graph API live (env token)'
+          : 'Not connected — connect in Setup or use Copy & Open',
     },
     x: {
       configured: xReady,
-      note: xReady
-        ? 'X API v2 live (supports threads & self-replies)'
-        : 'Copy-ready today (optional X_ACCESS_TOKEN in .env.local)',
+      handle: connections?.x?.accountHandle ?? null,
+      note: xOAuth
+        ? `Connected as ${connections?.x?.accountHandle || 'X account'}`
+        : xReady
+          ? 'X API v2 live (env token)'
+          : 'Not connected — connect in Setup or use Copy & Open',
     },
     facebook: {
-      configured: false,
-      note: 'Copy & Open Facebook (drop URL in first comment)',
+      configured: fbReady,
+      handle: connections?.facebook?.accountHandle ?? null,
+      note: fbReady
+        ? `Connected Page: ${connections?.facebook?.accountHandle || 'Facebook Page'}`
+        : 'Not connected — connect Facebook Page in Setup',
     },
     substack: {
       configured: false,
-      note: 'Copy & Open Substack Notes',
+      note: 'Substack has no public posting API — uses Copy & Open',
     },
     instagram: {
-      configured: false,
-      note: 'Copy caption & upload 4:5 visual natively in Instagram',
+      configured: igReady,
+      handle: connections?.instagram?.accountHandle ?? null,
+      note: igReady
+        ? `Connected as ${connections?.instagram?.accountHandle || 'Instagram'} (requires image)`
+        : 'Not connected — connect via Meta in Setup (requires image)',
     },
     tiktok: {
       configured: false,
@@ -52,11 +80,15 @@ export async function dispatchVariant({
   bodyText,
   replyText,
   mode,
+  connection,
+  imageUrl,
 }: {
   platform: PlatformId;
   bodyText: string;
   replyText?: string;
   mode: 'copy' | 'api';
+  connection?: PlatformConnectionRecord | null;
+  imageUrl?: string;
 }): Promise<PublishAttemptResult> {
   if (mode === 'copy') {
     return {
@@ -67,14 +99,14 @@ export async function dispatchVariant({
   }
 
   if (platform === 'threads') {
-    const token = process.env.THREADS_ACCESS_TOKEN;
-    const userId = process.env.THREADS_USER_ID;
+    const token = connection?.access_token || process.env.THREADS_ACCESS_TOKEN;
+    const userId = connection?.account_id || process.env.THREADS_USER_ID;
     if (!token || !userId) {
       return {
         ok: false,
         mode: 'api',
         fallbackToCopy: true,
-        message: 'Threads API tokens are not set yet — use Copy & Open Threads.',
+        message: 'Threads is not connected yet — connect in Setup or use Copy & Open Threads.',
       };
     }
 
@@ -146,13 +178,13 @@ export async function dispatchVariant({
   }
 
   if (platform === 'x') {
-    const token = process.env.X_ACCESS_TOKEN;
+    const token = connection?.access_token || process.env.X_ACCESS_TOKEN;
     if (!token) {
       return {
         ok: false,
         mode: 'api',
         fallbackToCopy: true,
-        message: 'X_ACCESS_TOKEN is not set yet — use Copy & Open X.',
+        message: 'X is not connected yet — connect in Setup or use Copy & Open X.',
       };
     }
 
@@ -200,6 +232,108 @@ export async function dispatchVariant({
         parts.length > 1
           ? `Published ${parts.length}-post thread to X!`
           : 'Published directly to X!',
+    };
+  }
+
+  if (platform === 'facebook') {
+    const token = connection?.access_token;
+    const pageId = connection?.account_id;
+    if (!token || !pageId) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: 'Facebook Page is not connected yet — connect via Meta in Setup.',
+      };
+    }
+
+    const res = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(pageId)}/feed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: bodyText, access_token: token }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = (await res.json()) as { id?: string; error?: { message?: string } };
+    if (!res.ok || !data.id) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: `Facebook Page error: ${data.error?.message || res.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      mode: 'api',
+      externalUrl: `https://www.facebook.com/${data.id}`,
+      message: 'Published directly to your Facebook Page!',
+    };
+  }
+
+  if (platform === 'instagram') {
+    const token = connection?.access_token;
+    const igUserId = connection?.account_id;
+    if (!token || !igUserId) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: 'Instagram is not connected yet — connect via Meta in Setup.',
+      };
+    }
+    if (!imageUrl) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: 'Instagram requires an image URL to publish via API — attach an image or use Copy & Open.',
+      };
+    }
+
+    const createRes = await fetch(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl, caption: bodyText, access_token: token }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    const createJson = (await createRes.json()) as { id?: string; error?: { message?: string } };
+    if (!createRes.ok || !createJson.id) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: `Instagram container error: ${createJson.error?.message || createRes.status}`,
+      };
+    }
+
+    const pubRes = await fetch(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media_publish`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creation_id: createJson.id, access_token: token }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    const pubJson = (await pubRes.json()) as { id?: string; error?: { message?: string } };
+    if (!pubRes.ok || !pubJson.id) {
+      return {
+        ok: false,
+        mode: 'api',
+        fallbackToCopy: true,
+        message: `Instagram publish error: ${pubJson.error?.message || pubRes.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      mode: 'api',
+      externalUrl: 'https://www.instagram.com/',
+      message: 'Published directly to Instagram!',
     };
   }
 
