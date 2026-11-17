@@ -3,12 +3,11 @@
 import React, { useId, useRef } from 'react';
 import { m, useReducedMotion } from 'framer-motion';
 import { PLATFORM_ORDER, PLATFORM_SPECS, type PlatformId } from '@/lib/platforms';
-import { ART } from '@/lib/art-direction';
 
 /**
- * Channel picker drawn as six painted birds resting on a horizon line.
- * Semantically a WAI-ARIA tablist: roving tabindex + Arrow/Home/End; single row that scrolls
- * inside itself on narrow screens. The selected bird lifts off the line.
+ * Unmistakably clickable segmented channel rail for selecting between the 6 rooms.
+ * WAI-ARIA tablist with roving tabindex, Arrow/Home/End keyboard navigation,
+ * a shared sliding active pill (`layoutId`), and optional auto-tour progress bar.
  */
 export default function HorizonTabs({
   active,
@@ -16,12 +15,14 @@ export default function HorizonTabs({
   posted,
   idBase,
   label = 'Channels',
+  autoProgress = false,
 }: {
   active: PlatformId;
   onSelect: (p: PlatformId) => void;
   posted?: Partial<Record<PlatformId, boolean>>;
   idBase?: string;
   label?: string;
+  autoProgress?: boolean;
 }) {
   const autoId = useId();
   const base = idBase ?? autoId;
@@ -40,7 +41,15 @@ export default function HorizonTabs({
   function onKeyDown(e: React.KeyboardEvent, idx: number) {
     const n = PLATFORM_ORDER.length;
     const next =
-      e.key === 'ArrowRight' ? (idx + 1) % n : e.key === 'ArrowLeft' ? (idx - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : null;
+      e.key === 'ArrowRight'
+        ? (idx + 1) % n
+        : e.key === 'ArrowLeft'
+          ? (idx - 1 + n) % n
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? n - 1
+              : null;
     if (next !== null) {
       e.preventDefault();
       select(PLATFORM_ORDER[next], true);
@@ -48,13 +57,12 @@ export default function HorizonTabs({
   }
 
   return (
-    <div className="relative min-w-0 w-full max-w-full">
-      {/* The horizon line the birds rest on */}
-      <svg aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-[10px] h-3 w-full" preserveAspectRatio="none" viewBox="0 0 100 4">
-        <path d="M0 2.2 C20 1.6 38 2.8 55 2 C72 1.3 86 2.6 100 2" fill="none" stroke="var(--wc-ink)" strokeOpacity="0.22" strokeWidth="0.6" vectorEffect="non-scaling-stroke" filter="url(#wc-edge)" />
-      </svg>
-
-      <div role="tablist" aria-label={label} className="asterisk-tablist max-w-full gap-1 sm:gap-2">
+    <div className="w-full max-w-full min-w-0 rounded-2xl border border-[var(--a-rule)] bg-[var(--a-surface)]/85 p-1.5">
+      <div
+        role="tablist"
+        aria-label={label}
+        className="flex flex-nowrap sm:flex-wrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {PLATFORM_ORDER.map((pid, idx) => {
           const spec = PLATFORM_SPECS[pid];
           const selected = pid === active;
@@ -71,25 +79,53 @@ export default function HorizonTabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => select(pid)}
               onKeyDown={(e) => onKeyDown(e, idx)}
-              className={`group relative flex min-h-[64px] min-w-[64px] flex-col items-center justify-end gap-1 px-2.5 pb-1 text-[13px] font-medium cursor-pointer transition-colors ${
-                selected ? 'text-[var(--a-ink)]' : 'text-[var(--a-muted)] hover:text-[var(--a-ink)]'
+              className={`relative flex-none sm:flex-1 min-w-[78px] sm:min-w-0 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[14px] font-semibold cursor-pointer whitespace-nowrap transition-colors ${
+                selected
+                  ? 'text-[var(--a-bg)]'
+                  : 'text-[var(--a-ink)]/75 hover:bg-[var(--a-well)] hover:text-[var(--a-ink)]'
               }`}
             >
-              <m.img
-                src={ART.bird.src}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                animate={reduce ? undefined : { y: selected ? -10 : 0, rotate: selected ? -12 : 0, scale: selected ? 1.15 : 1 }}
-                whileHover={reduce || selected ? undefined : { y: -4, rotate: -6 }}
-                transition={{ type: 'spring', stiffness: 320, damping: 20 }}
-                className={`wc-glaze h-7 w-7 ${selected ? 'opacity-100' : 'opacity-55 group-hover:opacity-90'}`}
-              />
-              <span className="flex items-center gap-1 whitespace-nowrap">
-                {spec.shortName}
-                {spec.tier === 'test' && <span className="font-sans text-[13px] font-semibold text-[var(--a-sky-text)]">β</span>}
-                {posted?.[pid] && <span aria-label="posted" className="text-[var(--a-emerald)]">•</span>}
+              {selected && (
+                <m.span
+                  layoutId={`${base}-active-pill`}
+                  transition={
+                    reduce
+                      ? { duration: 0 }
+                      : { type: 'spring', stiffness: 420, damping: 34 }
+                  }
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-xl bg-[var(--a-ink)] shadow-sm"
+                />
+              )}
+
+              <span className="relative z-10 inline-flex items-center gap-1.5">
+                <span>{spec.shortName}</span>
+                {spec.tier === 'test' && (
+                  <span
+                    className={`font-sans text-[12px] font-semibold ${
+                      selected ? 'text-[#7DD3FC]' : 'text-[var(--a-sky-text)]'
+                    }`}
+                  >
+                    β
+                  </span>
+                )}
+                {posted?.[pid] && (
+                  <span aria-label="posted" className="text-[var(--a-emerald)]">
+                    •
+                  </span>
+                )}
               </span>
+
+              {selected && autoProgress && !reduce && (
+                <m.span
+                  key={`progress-${pid}`}
+                  aria-hidden="true"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ duration: 3.4, ease: 'linear' }}
+                  className="pointer-events-none absolute inset-x-2.5 bottom-1 z-10 h-[2px] origin-left rounded-full bg-[var(--a-accent)]"
+                />
+              )}
             </button>
           );
         })}
