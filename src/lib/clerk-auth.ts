@@ -69,13 +69,15 @@ export async function validateClerkMember(): Promise<MemberSessionResult> {
   try {
     const sql = neon(process.env.DATABASE_URL!);
     const rows = (await sql`
-      SELECT id, clerk_id AS "clerkId", email, tier, realtime_alias AS "realtimeAlias"
+      SELECT id, clerk_id AS "clerkId", email, tier
       FROM profiles
       WHERE clerk_id = ${userId}
       LIMIT 1
-    `) as ClerkMemberProfile[];
+    `) as Omit<ClerkMemberProfile, 'realtimeAlias'>[];
 
-    const profile = rows[0] ?? null;
+    const profile: ClerkMemberProfile | null = rows[0]
+      ? { ...rows[0], realtimeAlias: null }
+      : null;
     const requireProfile = process.env.ASTERISK_REQUIRE_PROFILES_ROW === '1';
     return {
       authenticated: profile ? true : !requireProfile,
@@ -86,8 +88,9 @@ export async function validateClerkMember(): Promise<MemberSessionResult> {
     };
   } catch (err) {
     console.error('[asterisk] Neon profile validation failed:', err);
+    const requireProfile = process.env.ASTERISK_REQUIRE_PROFILES_ROW === '1';
     return {
-      authenticated: false,
+      authenticated: !requireProfile,
       mode: 'clerk',
       clerkId: userId,
       profile: null,
