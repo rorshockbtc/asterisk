@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useId, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { m, useReducedMotion } from 'framer-motion';
 import { AccentHairlineItem, AccentHairlineList, AccentInput, Eyebrow } from 'accent-ui';
 import { useStudio } from '@/components/studio/StudioContext';
@@ -19,6 +19,10 @@ const STEP_TABS: { id: SetupStep; label: string }[] = [
 
 export default function CalmSetup() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const oauthError = searchParams.get('oauth_error');
+  const connectedParam = searchParams.get('connected');
+  const initialTab = searchParams.get('tab') === 'publishing' ? 'publishing' : 'accounts';
   const tabsId = useId();
   const reduce = useReducedMotion();
   const tabRefs = useRef<Partial<Record<SetupStep, HTMLButtonElement | null>>>({});
@@ -31,7 +35,7 @@ export default function CalmSetup() {
     handleSavePlatformSetting,
   } = useStudio();
 
-  const [step, setStep] = useState<SetupStep>('accounts');
+  const [step, setStep] = useState<SetupStep>(initialTab);
   const [draftHandles, setDraftHandles] = useState<Record<string, string>>({});
   const [draftCadences, setDraftCadences] = useState<Record<string, number>>({});
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
@@ -405,6 +409,16 @@ export default function CalmSetup() {
       {/* Step 3: Direct OAuth Connections + Multi-platform Auto-Publishing */}
       {step === 'publishing' && (
         <section role="tabpanel" aria-labelledby={`${tabsId}-tab-publishing`} className="space-y-6">
+          {oauthError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-900">
+              <strong>Connection error:</strong> {oauthError}
+            </div>
+          )}
+          {connectedParam && (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-[14px] text-emerald-900">
+              <strong>Connected:</strong> {connectedParam} is now linked and ready to publish.
+            </div>
+          )}
           <div className="border-l-2 border-[var(--a-accent)] bg-[var(--a-surface)] px-5 py-4 space-y-2">
             <h2 className="font-display text-lg font-bold text-[var(--a-ink)]">
               Connect your social accounts for 1-click publishing
