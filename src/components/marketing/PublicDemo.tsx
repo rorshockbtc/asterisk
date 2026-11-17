@@ -3,7 +3,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
-import { Pause, Play, RotateCw } from 'lucide-react';
+import { Check, Copy, Pause, PenLine, Play, RotateCw } from 'lucide-react';
 import HorizonTabs from '@/components/compose/HorizonTabs';
 import MediaTray from '@/components/compose/MediaTray';
 import PostPreview from '@/components/compose/PostPreview';
@@ -43,8 +43,7 @@ const PRESETS: Array<{ id: string; label: string; text: string }> = [
 
 /**
  * Public, account-free demo. Everything stays in this browser tab; nothing is sent anywhere.
- * Auto-cycles across all six rooms while in view so visitors can watch one thought travel
- * immediately without having to click every tab, while remaining crisp within one viewport.
+ * Equal-height two-column stage with living animated watercolor weather and smooth room transitions.
  */
 export default function PublicDemo() {
   const tabsId = useId();
@@ -66,9 +65,10 @@ export default function PublicDemo() {
   const [inView, setInView] = useState(false);
   const [autoCycle, setAutoCycle] = useState(true);
   const [previewHovered, setPreviewHovered] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [copiedReply, setCopiedReply] = useState(false);
 
-  const isTourPlaying = autoCycle && inView && !previewHovered && !reduce;
+  const isTourPlaying = autoCycle && inView && !previewHovered && !customizeOpen && !reduce;
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -127,11 +127,6 @@ export default function PublicDemo() {
     setOverrides((o) => ({ ...o, [active]: { body, reply: draft.reply } }));
   }
 
-  function editReply(reply: string) {
-    setAutoCycle(false);
-    setOverrides((o) => ({ ...o, [active]: { body: draft.body, reply } }));
-  }
-
   function fix() {
     const { mainText, replyText } = extractLinksForThreadsReply(draft.body);
     setOverrides((o) => ({
@@ -163,7 +158,7 @@ export default function PublicDemo() {
       window.open(spec.composeUrl, '_blank', 'noopener,noreferrer');
       setStatus(
         draft.reply.trim()
-          ? `Copied for ${spec.shortName}. After posting, copy the self-reply link inside the card and paste it under your post.`
+          ? `Copied for ${spec.shortName}. After posting, click "Copy reply" inside the thread to paste your link.`
           : `Copied for ${spec.shortName}. Paste it into the composer that just opened.`
       );
     } catch {
@@ -176,7 +171,7 @@ export default function PublicDemo() {
       ref={sectionRef}
       id="demo"
       aria-labelledby="demo-title"
-      className="relative scroll-mt-20 bg-[var(--a-bg)] py-14 sm:py-20"
+      className="relative scroll-mt-24 bg-[var(--a-bg)] py-12 sm:py-16"
     >
       {layer}
       <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
@@ -195,113 +190,159 @@ export default function PublicDemo() {
           </p>
         </div>
 
-        <div className="mt-7 grid gap-8 lg:grid-cols-12 lg:gap-10 lg:items-start">
-          {/* Left: Write your core thought */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label
-                htmlFor="demo-seed"
-                className="font-display text-xl font-bold text-[var(--a-ink)]"
-              >
-                Your thought
-              </label>
-              <div className="flex flex-wrap items-center gap-1.5" aria-label="Sample prompts">
-                {PRESETS.map((preset) => {
-                  const isCurrent = seed === preset.text;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => applyPreset(preset.text)}
-                      className={`min-h-[32px] rounded-full px-3 py-1 text-[12px] font-semibold border transition-colors cursor-pointer ${
-                        isCurrent
-                          ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-[var(--a-bg)]'
-                          : 'border-[var(--a-rule)] bg-[var(--a-well)] text-[var(--a-ink)]/80 hover:border-[var(--a-ink)]/45 hover:text-[var(--a-ink)]'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
+        <div className="mt-6 grid gap-6 lg:grid-cols-12 lg:gap-8 lg:items-stretch">
+          {/* Left: Equal-height calm paper writing sheet */}
+          <div className="lg:col-span-5 flex flex-col justify-between gap-5 rounded-2xl border border-[var(--a-rule)] bg-[var(--a-well)]/75 p-5 sm:p-6">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor="demo-seed"
+                  className="font-display text-lg font-bold text-[var(--a-ink)]"
+                >
+                  Your thought
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5" aria-label="Sample prompts">
+                  {PRESETS.map((preset) => {
+                    const isCurrent = seed === preset.text;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => applyPreset(preset.text)}
+                        className={`min-h-[30px] rounded-full px-2.5 py-1 text-[12px] font-semibold border transition-colors cursor-pointer ${
+                          isCurrent
+                            ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-[var(--a-bg)]'
+                            : 'border-[var(--a-rule)] bg-[var(--a-well)] text-[var(--a-ink)]/80 hover:border-[var(--a-ink)]/45 hover:text-[var(--a-ink)]'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              <textarea
+                id="demo-seed"
+                value={seed}
+                onChange={(e) => {
+                  setAutoCycle(false);
+                  setSeed(e.target.value);
+                  setOverrides({});
+                }}
+                className="asterisk-textarea block w-full resize-none overflow-hidden border-0 border-b border-[var(--a-rule)] bg-transparent px-0 py-1 font-serif text-[19px] leading-[1.52] text-[var(--a-ink)] focus:border-[var(--a-accent)] focus:outline-none focus-visible:outline-none transition-colors"
+              />
             </div>
 
-            <textarea
-              id="demo-seed"
-              rows={5}
-              value={seed}
-              onChange={(e) => {
-                setAutoCycle(false);
-                setSeed(e.target.value);
-                setOverrides({});
-              }}
-              className="block w-full resize-y border-0 border-b-2 border-[var(--a-ink)]/15 bg-transparent px-0 py-1.5 font-serif text-[19px] leading-[1.5] text-[var(--a-ink)] focus:border-[var(--a-accent)] focus:outline-none focus-visible:outline-none transition-colors"
-            />
-
-            <MediaTray
-              attachments={attachments}
-              onChangeAttachments={(next) => {
-                setAutoCycle(false);
-                setAttachments(next);
-              }}
-              mediaNote={media}
-              onChangeMediaNote={setMedia}
-            />
+            <div className="pt-2 border-t border-[var(--a-rule)]/60">
+              <MediaTray
+                attachments={attachments}
+                onChangeAttachments={(next) => {
+                  setAutoCycle(false);
+                  setAttachments(next);
+                }}
+                mediaNote={media}
+                onChangeMediaNote={setMedia}
+              />
+            </div>
           </div>
 
-          {/* Right: Segmented clickable room tabs + cohesive preview stage */}
-          <div className="lg:col-span-7 min-w-0 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-sans text-[13px] font-medium text-[var(--a-muted)]">
-                Click any room to inspect — or watch it travel
-              </p>
-              <button
-                type="button"
-                onClick={() => setAutoCycle((c) => !c)}
-                className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold cursor-pointer transition-colors ${
-                  autoCycle
-                    ? 'border-[var(--a-accent)]/40 bg-[var(--a-well)] text-[var(--a-accent-text)] hover:border-[var(--a-accent)]'
-                    : 'border-[var(--a-rule)] bg-[var(--a-well)] text-[var(--a-ink)] hover:border-[var(--a-ink)]/45'
-                }`}
-              >
-                {autoCycle ? (
-                  <>
-                    <Pause className="h-3 w-3" aria-hidden="true" />
-                    <span>Playing ↻</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-3 w-3" aria-hidden="true" />
-                    <span>Paused · Resume tour</span>
-                    <RotateCw className="h-3 w-3" aria-hidden="true" />
-                  </>
-                )}
-              </button>
+          {/* Right: Segmented clickable pills + living weather stage + unified footer */}
+          <div className="lg:col-span-7 min-w-0 flex flex-col justify-between gap-3">
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-sans text-[13px] font-medium text-[var(--a-muted)]">
+                  Click any room to inspect — or watch it travel
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAutoCycle((c) => !c)}
+                  className={`inline-flex min-h-[30px] items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold cursor-pointer transition-colors ${
+                    autoCycle
+                      ? 'border-[var(--a-accent)]/40 bg-[var(--a-well)] text-[var(--a-accent-text)] hover:border-[var(--a-accent)]'
+                      : 'border-[var(--a-rule)] bg-[var(--a-well)] text-[var(--a-ink)] hover:border-[var(--a-ink)]/45'
+                  }`}
+                >
+                  {autoCycle ? (
+                    <>
+                      <Pause className="h-3 w-3" aria-hidden="true" />
+                      <span>Playing ↻</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3" aria-hidden="true" />
+                      <span>Paused · Resume tour</span>
+                      <RotateCw className="h-3 w-3" aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <HorizonTabs
+                active={active}
+                onSelect={handleSelectRoom}
+                idBase={tabsId}
+                label="Demo channels"
+                autoProgress={isTourPlaying}
+              />
             </div>
 
-            <HorizonTabs
-              active={active}
-              onSelect={handleSelectRoom}
-              idBase={tabsId}
-              label="Demo channels"
-              autoProgress={isTourPlaying}
-            />
-
-            {/* Single cohesive preview + weather + self-reply stage */}
+            {/* Cohesive preview stage card */}
             <div
               role="tabpanel"
               aria-labelledby={`${tabsId}-tab-${active}`}
               onMouseEnter={() => setPreviewHovered(true)}
               onMouseLeave={() => setPreviewHovered(false)}
-              className="rounded-2xl border border-[var(--a-rule)] bg-[var(--a-well)] overflow-hidden shadow-[0_1px_0_rgba(17,24,39,0.06),0_26px_54px_-38px_rgba(42,47,69,0.32)]"
+              className="flex-1 flex flex-col justify-between rounded-2xl border border-[var(--a-rule)] bg-[var(--a-well)] overflow-hidden shadow-[0_1px_0_rgba(17,24,39,0.06),0_26px_54px_-38px_rgba(42,47,69,0.32)]"
             >
-              {/* Inline weather wash & live char/word meter strip */}
+              {/* Living animated watercolor weather header */}
               <div className="relative overflow-hidden border-b border-[var(--a-rule)] px-5 py-3">
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -inset-[10%] blur-[1.5px]"
-                  style={{ background: w.wash }}
-                />
+                <AnimatePresence initial={false}>
+                  <m.div
+                    key={weather}
+                    initial={reduce ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-[12%] blur-[2px]"
+                    style={{ background: w.wash }}
+                  />
+                </AnimatePresence>
+
+                {!reduce && (
+                  <>
+                    <m.div
+                      aria-hidden="true"
+                      animate={{ x: [-14, 16, -14], y: [-4, 6, -4], scale: [1, 1.08, 1] }}
+                      transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+                      className="pointer-events-none absolute -left-8 -top-6 h-24 w-56 rounded-full opacity-45 blur-xl"
+                      style={{
+                        background:
+                          weather === 'clear'
+                            ? 'radial-gradient(circle, rgba(169,211,234,0.85), transparent 72%)'
+                            : weather === 'dawn'
+                              ? 'radial-gradient(circle, rgba(247,185,201,0.85), transparent 72%)'
+                              : 'radial-gradient(circle, rgba(207,205,216,0.85), transparent 72%)',
+                      }}
+                    />
+                    <m.div
+                      aria-hidden="true"
+                      animate={{ x: [14, -14, 14], y: [5, -5, 5], scale: [1.06, 0.96, 1.06] }}
+                      transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+                      className="pointer-events-none absolute -right-8 -bottom-6 h-24 w-56 rounded-full opacity-40 blur-xl"
+                      style={{
+                        background:
+                          weather === 'clear'
+                            ? 'radial-gradient(circle, rgba(247,185,201,0.75), transparent 72%)'
+                            : weather === 'dawn'
+                              ? 'radial-gradient(circle, rgba(250,214,184,0.8), transparent 72%)'
+                              : 'radial-gradient(circle, rgba(195,196,208,0.8), transparent 72%)',
+                      }}
+                    />
+                  </>
+                )}
+
                 <div className="relative space-y-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="flex flex-wrap items-baseline gap-x-2.5">
@@ -343,6 +384,7 @@ export default function PublicDemo() {
                       </span>
                     </div>
                   </div>
+
                   <div
                     className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--a-ink)]/10"
                     aria-hidden="true"
@@ -361,104 +403,112 @@ export default function PublicDemo() {
                 </div>
               </div>
 
-              {/* Animated room panel */}
-              <AnimatePresence mode="wait" initial={false}>
-                <m.div
-                  key={active}
-                  initial={reduce ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduce ? undefined : { opacity: 0, y: -8 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                  className="px-5 py-4 sm:px-6 sm:py-5 space-y-4"
-                >
-                  <p className="font-serif italic text-[16px] text-[var(--a-muted)]">
-                    {PLATFORM_GUIDES[active].audiencePortrait}
-                  </p>
+              {/* Fluid room transition preview body */}
+              <div className="flex-1 px-5 py-4 sm:px-6 sm:py-5">
+                <AnimatePresence mode="wait" initial={false}>
+                  <m.div
+                    key={active}
+                    initial={reduce ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduce ? undefined : { opacity: 0, y: -8 }}
+                    transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                    className="space-y-3.5"
+                  >
+                    <p className="font-serif italic text-[15px] text-[var(--a-muted)]">
+                      {PLATFORM_GUIDES[active].audiencePortrait}
+                    </p>
 
-                  <PostPreview
-                    platform={active}
-                    body={draft.body}
-                    reply={draft.reply}
-                    attachments={attachments}
-                  />
+                    <PostPreview
+                      platform={active}
+                      body={draft.body}
+                      reply={draft.reply}
+                      attachments={attachments}
+                    />
 
-                  {(active === 'threads' || active === 'facebook') &&
-                    (draft.reply.trim() || hasUrlInBody) && (
-                      <div className="border-l-2 border-[var(--a-accent)] bg-[var(--a-surface)]/70 rounded-r-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <span className="block font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--a-ink)]">
-                            {active === 'threads' ? 'Self-reply link' : 'First-comment link'}
+                    {(active === 'threads' || active === 'facebook') &&
+                      (draft.reply.trim() || hasUrlInBody) && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[13px]">
+                          <span className="text-[var(--a-muted)]">
+                            Link isolated safely in {active === 'threads' ? 'self-reply' : 'first comment'}
                           </span>
-                          <input
-                            aria-label={
-                              active === 'threads' ? 'Threads self-reply link' : 'Facebook comment link'
-                            }
-                            type="text"
-                            value={draft.reply}
-                            onChange={(e) => editReply(e.target.value)}
-                            className="w-full bg-transparent text-[14px] text-[var(--a-ink)] focus:outline-none"
-                          />
+                          <div className="flex items-center gap-2">
+                            {hasUrlInBody && (
+                              <button
+                                type="button"
+                                onClick={fix}
+                                className="wc-link font-semibold text-[var(--a-accent-text)] cursor-pointer"
+                              >
+                                Move URL out
+                              </button>
+                            )}
+                            {draft.reply.trim() && (
+                              <button
+                                type="button"
+                                onClick={copyReplyLink}
+                                className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-[var(--a-rule)] bg-[var(--a-surface)]/70 px-3 text-[12px] font-semibold text-[var(--a-ink)] hover:border-[var(--a-accent)] cursor-pointer transition-colors"
+                              >
+                                {copiedReply ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-[var(--a-emerald)]" aria-hidden="true" />
+                                    <span>Copied reply</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3 text-[var(--a-accent-text)]" aria-hidden="true" />
+                                    <span>Copy reply</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {hasUrlInBody && (
-                            <button
-                              type="button"
-                              onClick={fix}
-                              className="wc-link text-[13px] font-semibold text-[var(--a-accent-text)] cursor-pointer"
-                            >
-                              Move URL out
-                            </button>
-                          )}
-                          {draft.reply.trim() && (
-                            <button
-                              type="button"
-                              onClick={copyReplyLink}
-                              className="min-h-[34px] rounded-full border border-[var(--a-rule)] bg-[var(--a-well)] px-3 text-[12px] font-semibold text-[var(--a-ink)] hover:border-[var(--a-accent)] cursor-pointer transition-colors"
-                            >
-                              {copiedReply ? 'Copied ✓' : 'Copy reply link'}
-                            </button>
-                          )}
-                        </div>
+                      )}
+
+                    {customizeOpen && (
+                      <div className="border-t border-[var(--a-rule)] pt-3">
+                        <textarea
+                          aria-label={`${spec.name} copy`}
+                          rows={3}
+                          value={draft.body}
+                          onChange={(e) => editBody(e.target.value)}
+                          className="asterisk-textarea-compact block w-full rounded-lg border border-[var(--a-rule)] bg-[var(--a-bg)] px-3.5 py-2 text-[15px] leading-relaxed text-[var(--a-ink)] focus:border-[var(--a-accent)] focus:outline-none"
+                        />
                       </div>
                     )}
-
-                  <details className="border-t border-[var(--a-rule)] pt-3 group">
-                    <summary className="min-h-[36px] inline-flex flex-wrap items-center gap-2 cursor-pointer text-[14px] font-semibold text-[var(--a-ink)] hover:text-[var(--a-accent-text)]">
-                      <span>Customize {spec.shortName} wording</span>
-                      <span className="font-normal text-[13px] text-[var(--a-muted)]">
-                        — optional override just for this room
-                      </span>
-                    </summary>
-                    <textarea
-                      aria-label={`${spec.name} copy`}
-                      rows={3}
-                      value={draft.body}
-                      onChange={(e) => editBody(e.target.value)}
-                      className="asterisk-textarea-compact mt-2 block rounded-md border border-[var(--a-rule)] bg-[var(--a-bg)] px-3.5 py-2 text-[15px] leading-relaxed text-[var(--a-ink)]"
-                    />
-                  </details>
-                </m.div>
-              </AnimatePresence>
+                  </m.div>
+                </AnimatePresence>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {/* Unified bottom action bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <button
                   ref={copyRef}
                   type="button"
                   onClick={copyAndOpen}
                   {...bloomHandlers<HTMLButtonElement>()}
-                  className="wc-cta inline-flex min-h-[48px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-6 text-[15px] font-semibold text-white cursor-pointer shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)]"
+                  className="wc-cta inline-flex min-h-[46px] items-center gap-2 rounded-full bg-[var(--a-accent-fill)] px-6 text-[15px] font-semibold text-white cursor-pointer shadow-[0_14px_36px_-14px_rgba(254,41,158,0.7)]"
                 >
                   Copy &amp; open {spec.shortName} <span aria-hidden="true">↗</span>
                 </button>
+                <button
+                  type="button"
+                  aria-expanded={customizeOpen}
+                  onClick={() => setCustomizeOpen((o) => !o)}
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-full border border-[var(--a-rule)] bg-[var(--a-well)] px-3.5 text-[13px] font-semibold text-[var(--a-ink)] hover:border-[var(--a-ink)]/45 cursor-pointer transition-colors"
+                >
+                  <PenLine className="h-3.5 w-3.5 text-[var(--a-muted)]" aria-hidden="true" />
+                  <span>{customizeOpen ? 'Done editing' : `Customize ${spec.shortName}`}</span>
+                </button>
                 <Link
                   href={isLoggedIn ? '/app' : '/login?intent=signup'}
-                  className="wc-link min-h-[40px] inline-flex items-center text-[14px] font-semibold text-[var(--a-ink)]"
+                  className="wc-link min-h-[38px] inline-flex items-center text-[14px] font-semibold text-[var(--a-ink)]"
                 >
                   {isLoggedIn ? 'Open composing desk →' : 'Sign up to publish directly'}
                 </Link>
               </div>
+
               {status && (
                 <p role="status" aria-live="polite" className="text-[13px] text-[var(--a-ink)]/80">
                   {status}

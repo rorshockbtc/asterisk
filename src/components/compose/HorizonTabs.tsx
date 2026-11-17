@@ -79,7 +79,7 @@ export default function HorizonTabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => select(pid)}
               onKeyDown={(e) => onKeyDown(e, idx)}
-              className={`relative flex-none sm:flex-1 min-w-[78px] sm:min-w-0 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[14px] font-semibold cursor-pointer whitespace-nowrap transition-colors ${
+              className={`relative flex-none sm:flex-1 min-w-[76px] sm:min-w-0 min-h-[40px] inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-[14px] font-semibold cursor-pointer whitespace-nowrap transition-colors ${
                 selected
                   ? 'text-[var(--a-bg)]'
                   : 'text-[var(--a-ink)]/75 hover:bg-[var(--a-well)] hover:text-[var(--a-ink)]'
