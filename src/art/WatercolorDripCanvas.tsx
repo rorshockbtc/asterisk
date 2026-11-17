@@ -785,56 +785,23 @@ export default function WatercolorDripCanvas({
 
       const morphT = smoothstep(0, d.morphMs, elapsed);
       const raw = getRawPigment(d.kind);
-
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      const segCount = d.trail.length - 1;
-      for (let i = 0; i < segCount; i++) {
-        const p0 = d.trail[i];
-        const p1 = d.trail[i + 1];
-        const progress = i / Math.max(1, segCount);
-        const midYNorm = ((p0.y + p1.y) * 0.5) / Math.max(height, 1);
-        const mixed = mixPigment(d.kind, midYNorm);
-        const curCore = lerpRgb(raw.core, mixed.core, morphT);
-        const curRing = lerpRgb(raw.ring, mixed.ring, morphT);
-        const segColor = lerpRgb(curCore, curRing, 0.32);
-
-        const taper = d.isFlick ? 1 - progress * 0.72 : 0.45 + 0.55 * (1 - progress * 0.45);
-        ctx.strokeStyle = `rgba(${segColor.r}, ${segColor.g}, ${segColor.b}, ${(alpha * (0.55 + progress * 0.45)).toFixed(4)})`;
-        ctx.lineWidth = Math.max(1.2, d.baseWidth * taper * widthSwell);
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.lineTo(p1.x, p1.y);
-        ctx.stroke();
-      }
-
       const headMix = mixPigment(d.kind, d.headY / Math.max(height, 1));
       const headCore = lerpRgb(raw.core, headMix.core, morphT);
       const headRing = lerpRgb(raw.ring, headMix.ring, morphT);
-      const beadR = d.baseWidth * (running ? (d.isFlick ? 0.75 : 0.92) : 0.72) * widthSwell;
-      const beadGrad = ctx.createRadialGradient(
-        d.headX,
-        d.headY,
-        beadR * 0.1,
-        d.headX,
-        d.headY,
-        beadR * 1.45
-      );
-      beadGrad.addColorStop(0, `rgba(${headCore.r}, ${headCore.g}, ${headCore.b}, ${(alpha * 0.85).toFixed(4)})`);
-      beadGrad.addColorStop(0.7, `rgba(${headRing.r}, ${headRing.g}, ${headRing.b}, ${alpha.toFixed(4)})`);
-      beadGrad.addColorStop(1, `rgba(${headRing.r}, ${headRing.g}, ${headRing.b}, 0)`);
+      const beadR = d.baseWidth * (running ? (d.isFlick ? 0.95 : 1.15) : 0.85) * widthSwell;
 
       const headAngle = Math.atan2(d.vy, d.vx);
       ctx.save();
       ctx.translate(d.headX, d.headY);
       ctx.rotate(headAngle);
+      const beadGrad = ctx.createRadialGradient(0, 0, beadR * 0.1, 0, 0, beadR * 1.5);
+      beadGrad.addColorStop(0, `rgba(${headCore.r}, ${headCore.g}, ${headCore.b}, ${(alpha * 0.85).toFixed(4)})`);
+      beadGrad.addColorStop(0.7, `rgba(${headRing.r}, ${headRing.g}, ${headRing.b}, ${alpha.toFixed(4)})`);
+      beadGrad.addColorStop(1, `rgba(${headRing.r}, ${headRing.g}, ${headRing.b}, 0)`);
       ctx.fillStyle = beadGrad;
       ctx.beginPath();
-      ctx.ellipse(0, 0, beadR * 1.38, beadR * 1.0, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, beadR * 1.45, beadR * 1.05, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
       ctx.restore();
       return true;
     };
