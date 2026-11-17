@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   }
 
   const clientId = process.env.X_CLIENT_ID;
-  const clientSecret = process.env.X_CLIENT_SECRET;
+  const clientSecret = process.env.X_CLIENT_SECRET || process.env.X_SECRET_KEY;
   if (!clientId) {
     return NextResponse.redirect(
       new URL('/app/setup?tab=publishing&oauth_error=missing_x_client_id', origin)
