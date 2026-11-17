@@ -147,15 +147,15 @@ export default function WetBrushCanvas({
         vy: dy * 0.04 + (Math.random() - 0.5) * 0.35 - 0.08,
         angle: angle + (Math.random() - 0.5) * 0.35,
         baseRadius,
-        maxSpread: 1.75 + Math.random() * 0.45,
+        maxSpread: 1.95 + Math.random() * 0.55,
         aspect: 1.25 + Math.min(clampSpeed / 38, 0.85),
         color,
         bornAt: now,
-        lifeMs: 3400 + Math.random() * 900,
+        lifeMs: 9200 + Math.random() * 2400,
         lobes,
         peakAlpha: 0.095 + Math.random() * 0.045,
       });
-      scheduleSoftEvaporate(dabs, 320, now);
+      scheduleSoftEvaporate(dabs, 360, now);
     };
 
     const drawDab = (dab: BrushDab, now: number): boolean => {
@@ -165,27 +165,29 @@ export default function WetBrushCanvas({
 
       let evapT = 0;
       if (dab.evaporateAt !== undefined) {
-        evapT = Math.min(1, Math.max(0, (now - dab.evaporateAt) / 2000));
+        evapT = Math.min(1, Math.max(0, (now - dab.evaporateAt) / 3200));
         if (evapT >= 1) return false;
       }
 
       const t = age / dab.lifeMs;
-      // Fast wet capillary bloom in first 40%, natural bloom-out swell afterward & during dissolve
-      const spreadEase = 1 - Math.pow(1 - t, 2.4);
-      const naturalSwell = t > 0.65 ? 1 + smoothstep(0.65, 1.0, t) * 0.28 : 1;
+      // Fast initial capillary bloom over ~1.4s, then continuous outward bleed & linger
+      const fastSpread = 1 - Math.pow(1 - Math.min(1, age / 1400), 2.4);
+      const continuousBloom = fastSpread + t * 0.36;
+      const naturalSwell = t > 0.55 ? 1 + smoothstep(0.55, 1.0, t) * 0.28 : 1;
       const evapSwell = 1 + 0.38 * smoothstep(0, 1, evapT);
-      const radius = dab.baseRadius * (1 + (dab.maxSpread - 1) * spreadEase) * naturalSwell * evapSwell;
+      const radius =
+        dab.baseRadius * (1 + (dab.maxSpread - 1) * continuousBloom) * naturalSwell * evapSwell;
 
-      // Smooth fade-in (first 8%) then slow watercolor evaporation
-      const fadeIn = Math.min(1, t / 0.08);
-      const fadeOut = Math.pow(1 - t, 1.65);
+      // Crisp ~240ms appearance, ~5.5s plateau for screenshots, ~4.5s gentle evaporation
+      const fadeIn = Math.min(1, age / 240);
+      const fadeOut = t > 0.55 ? Math.pow(1 - (t - 0.55) / 0.45, 1.55) : 1;
       const evapFade = dab.evaporateAt !== undefined ? Math.pow(1 - evapT, 1.75) : 1;
       const alpha = dab.peakAlpha * fadeIn * fadeOut * evapFade;
       if (alpha <= 0.003) return dab.evaporateAt === undefined;
 
       const driftFrames = age / 16.67;
-      const cx = dab.x + dab.vx * driftFrames * 0.35;
-      const cy = dab.y + dab.vy * driftFrames * 0.35;
+      const cx = dab.x + dab.vx * driftFrames * 0.48;
+      const cy = dab.y + dab.vy * driftFrames * 0.48;
 
       ctx.save();
       ctx.translate(cx, cy);
