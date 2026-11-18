@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useId, useState } from 'react';
-import { Check, Copy, HelpCircle } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { AccentInput } from 'accent-ui/ui';
 import type { PlatformId } from '@/lib/platforms';
 
@@ -34,8 +34,8 @@ export default function ReplyLinkBox({
   }
 
   const isThreads = platform === 'threads';
-  const title = isThreads ? 'Threads self-reply link' : 'Facebook first-comment link';
-  const replyNoun = isThreads ? 'self-reply' : 'first comment';
+  const title = isThreads ? 'Link for your first reply (auto-reply)' : 'Link for your first comment';
+  const replyNoun = isThreads ? 'reply link' : 'comment link';
   const roomName = isThreads ? 'Threads' : 'Facebook';
   const hasUrlInBody = /https?:\/\/[^\s]+/i.test(bodyText);
 
@@ -104,42 +104,31 @@ export default function ReplyLinkBox({
         </div>
       </div>
 
+      <p className="text-[14px] leading-relaxed text-[var(--a-muted)]">
+        {isThreads ? (
+          autoPublishEnabled ? (
+            <>
+              <strong className="text-[var(--a-ink)]">Why this is separate:</strong> Threads hides posts with links in the main text. Put your link here instead — when you click <strong>Publish</strong>, asterisk posts your thought first and automatically replies to it with this link.
+            </>
+          ) : (
+            <>
+              <strong className="text-[var(--a-ink)]">Why this is separate:</strong> Threads hides posts with links in the main text. Post your thought first, then copy this link and paste it as your own first reply underneath.
+            </>
+          )
+        ) : (
+          <>
+            <strong className="text-[var(--a-ink)]">Why this is separate:</strong> Facebook shows fewer people posts that have links in the main caption. Post your caption first, then copy this link and paste it as the first comment underneath.
+          </>
+        )}
+      </p>
+
       <AccentInput
         id={inputId}
         type="text"
         value={replyText}
         onChange={(e) => onChangeReply(e.target.value)}
-        placeholder={`Optional ${replyNoun} URL (auto-filled when you include a link above)`}
+        placeholder={`Paste your URL here (auto-filled if you include a link above)`}
       />
-
-      <details className="group">
-        <summary className="inline-flex min-h-[36px] items-center gap-1.5 cursor-pointer text-[13px] font-medium text-[var(--a-muted)] hover:text-[var(--a-ink)]">
-          <HelpCircle className="h-3.5 w-3.5 text-[var(--a-accent-text)]" aria-hidden="true" />
-          <span>Why use a {replyNoun}? How it works</span>
-        </summary>
-        <div className="mt-2 rounded-xl bg-[var(--a-surface)] px-4 py-3 text-[14px] leading-relaxed text-[var(--a-ink)]/85 space-y-1.5">
-          <p>
-            <strong>Why:</strong> {roomName} quietly down-ranks main posts that include external links
-            sending people away from the feed. Keeping the main post link-free and dropping your
-            URL as the immediate {replyNoun} protects reach.
-          </p>
-          <p>
-            <strong>How to post it:</strong>{' '}
-            {autoPublishEnabled && isThreads ? (
-              <>
-                With Threads direct publishing connected, clicking <strong>Publish to Threads</strong>{' '}
-                posts your main thought and attaches this self-reply automatically.
-              </>
-            ) : (
-              <>
-                <strong>1.</strong> Click <strong>Copy &amp; open {roomName}</strong> below and paste
-                your main post. <strong>2.</strong> Click <strong>Copy {replyNoun} link</strong>{' '}
-                above and paste it as the first {isThreads ? 'reply' : 'comment'} right under your post.
-              </>
-            )}
-          </p>
-        </div>
-      </details>
     </div>
   );
 }
