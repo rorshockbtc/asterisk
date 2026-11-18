@@ -534,21 +534,45 @@ export default function CalmSetup() {
                       : 'Sign & publish via Alby, nos2x, or Flamingo browser extension'}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  setNostrError(null);
-                  const res = await connectNostrExtension();
-                  if (res.ok && res.handle) {
-                    setNostrHandle(res.handle);
-                  } else if (res.error) {
-                    setNostrError(res.error);
-                  }
-                }}
-                className="inline-flex min-h-[38px] items-center rounded-full bg-[var(--a-ink)] px-4 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer"
-              >
-                {nostrHandle ? 'Reconnect Nostr' : 'Connect Nostr'}
-              </button>
+              <div className="flex items-center gap-2">
+                {nostrHandle ? (
+                  <>
+                    <span className="inline-flex min-h-[38px] items-center rounded-full border border-emerald-300 bg-emerald-50 px-3.5 text-[13px] font-semibold text-emerald-800">
+                      Connected ✓
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch('/api/auth/disconnect', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ platform: 'nostr' }),
+                        });
+                        setNostrHandle(null);
+                      }}
+                      className="min-h-[38px] rounded-full border border-[var(--a-rule)] px-4 text-[13px] font-medium text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)] cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setNostrError(null);
+                      const res = await connectNostrExtension();
+                      if (res.ok && res.handle) {
+                        setNostrHandle(res.handle);
+                      } else if (res.error) {
+                        setNostrError(res.error);
+                      }
+                    }}
+                    className="inline-flex min-h-[38px] items-center rounded-full bg-[var(--a-ink)] px-4 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer"
+                  >
+                    Connect Nostr
+                  </button>
+                )}
+              </div>
             </li>
           </ul>
 
