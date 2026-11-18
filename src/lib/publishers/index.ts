@@ -15,7 +15,15 @@ export interface PublishAttemptResult {
 
 export function getApiConnectionStatus(
   connections?: Partial<Record<OAuthPlatform, PublicPlatformConnection>>
-): Record<PlatformId, { configured: boolean; note: string; handle?: string | null }> {
+): Record<
+  PlatformId,
+  {
+    configured: boolean;
+    note: string;
+    handle?: string | null;
+    pages?: Array<{ id: string; name: string; instagramHandle?: string | null }>;
+  }
+> {
   const threadsOAuth = connections?.threads?.connected;
   const xOAuth = connections?.x?.connected;
   const fbOAuth = connections?.facebook?.connected;
@@ -50,6 +58,7 @@ export function getApiConnectionStatus(
     facebook: {
       configured: fbReady,
       handle: connections?.facebook?.accountHandle ?? null,
+      pages: connections?.facebook?.pages ?? [],
       note: fbReady
         ? `Connected Page: ${connections?.facebook?.accountHandle || 'Facebook Page'}`
         : 'Not connected — connect Facebook Page in Setup',

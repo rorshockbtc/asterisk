@@ -23,6 +23,7 @@ export interface PublicPlatformConnection {
   accountId: string | null;
   expiresAt: string | null;
   updatedAt: string | null;
+  pages?: Array<{ id: string; name: string; instagramHandle?: string | null }>;
 }
 
 function getSql() {
@@ -204,7 +205,7 @@ export async function listPlatformConnections(
   await ensureConnectionsTable();
   const sql = getSql();
   const rows = (await sql`
-    SELECT platform, account_handle, account_id, expires_at, updated_at
+    SELECT platform, account_handle, account_id, expires_at, updated_at, meta_json
     FROM platform_connections
     WHERE owner_key = ${ownerKey}
   `) as Array<{
@@ -213,6 +214,13 @@ export async function listPlatformConnections(
     account_id: string | null;
     expires_at: string | null;
     updated_at: string;
+    meta_json: {
+      pages?: Array<{
+        id: string;
+        name: string;
+        instagram_business_account?: { id: string; username?: string } | null;
+      }>;
+    } | null;
   }>;
 
   for (const row of rows) {
@@ -224,6 +232,13 @@ export async function listPlatformConnections(
         accountId: row.account_id,
         expiresAt: row.expires_at,
         updatedAt: row.updated_at,
+        pages: row.meta_json?.pages?.map((p) => ({
+          id: p.id,
+          name: p.name,
+          instagramHandle: p.instagram_business_account?.username
+            ? `@${p.instagram_business_account.username}`
+            : null,
+        })),
       };
     }
   }

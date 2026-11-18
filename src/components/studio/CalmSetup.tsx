@@ -473,6 +473,33 @@ export default function CalmSetup() {
                     >
                       {api?.note || 'Copy & Open ready'}
                     </span>
+                    {pid === 'facebook' && api?.pages && api.pages.length > 1 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-[12px] text-[var(--a-muted)]">Active Page:</span>
+                        <select
+                          value={
+                            api.pages.find((p) => p.name === api.handle)?.id || api.pages[0].id
+                          }
+                          onChange={async (e) => {
+                            const pageId = e.target.value;
+                            await fetch('/api/auth/meta/select-page', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ pageId }),
+                            });
+                            window.location.reload();
+                          }}
+                          className="min-h-[32px] rounded-lg border border-[var(--a-rule)] bg-[var(--a-bg)] px-2.5 text-[12px] text-[var(--a-ink)]"
+                        >
+                          {api.pages.map((pg) => (
+                            <option key={pg.id} value={pg.id}>
+                              {pg.name}
+                              {pg.instagramHandle ? ` (IG: ${pg.instagramHandle})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
