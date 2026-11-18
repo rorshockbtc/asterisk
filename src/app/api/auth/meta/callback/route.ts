@@ -88,6 +88,14 @@ export async function GET(req: Request) {
     accessToken: firstPage.access_token,
     accountId: firstPage.id,
     accountHandle: firstPage.name,
+    meta: {
+      pages: pages.map((p) => ({
+        id: p.id,
+        name: p.name,
+        access_token: p.access_token,
+        instagram_business_account: p.instagram_business_account ?? null,
+      })),
+    },
   });
 
   if (igPage?.instagram_business_account?.id) {

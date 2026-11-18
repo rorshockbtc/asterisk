@@ -111,6 +111,39 @@ export default function CalmSetup() {
           </span>
         </div>
 
+        {/* Prominent top-level segmented tabs */}
+        <div
+          role="tablist"
+          aria-label="Setup steps"
+          className="inline-flex flex-wrap gap-2 rounded-2xl border border-[var(--a-rule)] bg-[var(--a-surface)] p-1.5"
+        >
+          {STEP_TABS.map((t, idx) => {
+            const active = step === t.id;
+            return (
+              <button
+                key={t.id}
+                ref={(el) => {
+                  tabRefs.current[t.id] = el;
+                }}
+                id={`${tabsId}-tab-${t.id}`}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => selectStep(t.id)}
+                onKeyDown={(e) => onTabKeyDown(e, idx)}
+                className={`min-h-[40px] rounded-xl px-4 text-sm font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                  active
+                    ? 'bg-[var(--a-ink)] text-white font-semibold shadow-sm'
+                    : 'text-[var(--a-muted)] hover:text-[var(--a-ink)]'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Plain-English overview for non-technical creators */}
         <dl className="grid gap-6 border-t border-[var(--a-rule)] pt-6 sm:grid-cols-3">
           <div className="space-y-1">
@@ -184,39 +217,6 @@ export default function CalmSetup() {
           </div>
         )}
       </header>
-
-      {/* Stepper tabs */}
-      <div
-        role="tablist"
-        aria-label="Setup steps"
-        className="asterisk-tablist max-w-full gap-6 border-b border-[var(--a-rule)]"
-      >
-        {STEP_TABS.map((t, idx) => {
-          const active = step === t.id;
-          return (
-            <button
-              key={t.id}
-              ref={(el) => {
-                tabRefs.current[t.id] = el;
-              }}
-              id={`${tabsId}-tab-${t.id}`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => selectStep(t.id)}
-              onKeyDown={(e) => onTabKeyDown(e, idx)}
-              className={`min-h-[44px] px-1 text-sm font-medium whitespace-nowrap cursor-pointer t-color ${
-                active
-                  ? 'text-[var(--a-ink)] font-semibold'
-                  : 'text-[var(--a-muted)] hover:text-[var(--a-ink)]'
-              }`}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
 
       {/* Step 1: Prescriptive Account Checklist */}
       {step === 'accounts' && (
@@ -463,20 +463,28 @@ export default function CalmSetup() {
                   <div className="flex items-center gap-2">
                     {connectHref ? (
                       api?.configured ? (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await fetch('/api/auth/disconnect', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ platform: pid }),
-                            });
-                            window.location.reload();
-                          }}
-                          className="min-h-[38px] rounded-full border border-[var(--a-rule)] px-4 text-[13px] font-medium text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)] cursor-pointer"
-                        >
-                          Disconnect
-                        </button>
+                        <>
+                          <a
+                            href={connectHref}
+                            className="inline-flex min-h-[38px] items-center rounded-full border border-[var(--a-rule)] px-4 text-[13px] font-medium text-[var(--a-ink)] hover:border-[var(--a-ink)] no-underline"
+                          >
+                            Switch
+                          </a>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await fetch('/api/auth/disconnect', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ platform: pid }),
+                              });
+                              window.location.reload();
+                            }}
+                            className="min-h-[38px] rounded-full border border-[var(--a-rule)] px-4 text-[13px] font-medium text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)] cursor-pointer"
+                          >
+                            Disconnect
+                          </button>
+                        </>
                       ) : (
                         <a
                           href={connectHref}

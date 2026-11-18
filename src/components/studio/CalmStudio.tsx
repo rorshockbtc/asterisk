@@ -546,6 +546,7 @@ export default function CalmStudio() {
                   </span>
                   {connectedPlatforms.map((pid) => {
                     const checked = activeTargets.includes(pid);
+                    const handle = apiStatus?.[pid]?.handle;
                     return (
                       <button
                         key={pid}
@@ -562,6 +563,7 @@ export default function CalmStudio() {
                         }`}
                       >
                         {PLATFORM_SPECS[pid].shortName}
+                        {handle ? ` (${handle})` : ''}
                       </button>
                     );
                   })}

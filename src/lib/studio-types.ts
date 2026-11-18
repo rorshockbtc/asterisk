@@ -39,7 +39,7 @@ export interface PlatformSetting {
   cadence_days: number;
 }
 
-export type ApiStatusMap = Record<PlatformId, { configured: boolean; note: string }>;
+export type ApiStatusMap = Record<PlatformId, { configured: boolean; note: string; handle?: string | null }>;
 
 export interface StudioHydrationPayload {
   broadcasts: BroadcastRecord[];
