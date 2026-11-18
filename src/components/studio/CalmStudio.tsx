@@ -12,6 +12,7 @@ import { useEnvelopeFlight } from '@/components/compose/EnvelopeFlight';
 import { useStudio } from '@/components/studio/StudioContext';
 import TopicPicker from '@/components/studio/TopicPicker';
 import { bloomHandlers } from '@/art/bloom';
+import { publishNostrNote } from '@/lib/nostr-client';
 import {
   analyzeDraftForPlatform,
   countWords,
@@ -65,6 +66,17 @@ export default function CalmStudio() {
   } = useStudio();
 
   const [selectedTargets, setSelectedTargets] = useState<PlatformId[]>([]);
+  const [includeNostr, setIncludeNostr] = useState(false);
+  const [profiles, setProfiles] = useState<Array<{ id: number; name: string; platforms: string[] }>>([]);
+
+  useEffect(() => {
+    fetch('/api/profiles')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.profiles) setProfiles(d.profiles);
+      })
+      .catch(() => {});
+  }, []);
 
   const [extensionNote, setExtensionNote] = useState('');
   const [pendingInbound, setPendingInbound] = useState<{
@@ -536,48 +548,97 @@ export default function CalmStudio() {
 
           {(() => {
             const connectedPlatforms = PLATFORM_ORDER.filter((pid) => apiStatus?.[pid]?.configured);
-            if (connectedPlatforms.length === 0) return null;
+            const hasNostr = typeof window !== 'undefined' && Boolean(window.nostr);
+            if (connectedPlatforms.length === 0 && !hasNostr) return null;
             const activeTargets = selectedTargets.filter((pid) => connectedPlatforms.includes(pid));
+            const totalSelected = activeTargets.length + (includeNostr ? 1 : 0);
             return (
-              <div className="border-t border-[var(--a-rule)] pt-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-sans text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--a-muted)] mr-1">
-                    Transmit to:
-                  </span>
-                  {connectedPlatforms.map((pid) => {
-                    const checked = activeTargets.includes(pid);
-                    const handle = apiStatus?.[pid]?.handle;
-                    return (
+              <div className="border-t border-[var(--a-rule)] pt-4 space-y-3">
+                {profiles.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-sans text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--a-muted)] mr-1">
+                      Profile:
+                    </span>
+                    {profiles.map((prof) => (
                       <button
-                        key={pid}
+                        key={prof.id}
                         type="button"
-                        onClick={() =>
-                          setSelectedTargets((prev) =>
-                            prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]
-                          )
-                        }
+                        onClick={() => {
+                          setSelectedTargets(
+                            prof.platforms.filter((p): p is PlatformId =>
+                              connectedPlatforms.includes(p as PlatformId)
+                            )
+                          );
+                          setIncludeNostr(prof.platforms.includes('nostr'));
+                        }}
+                        className="min-h-[28px] rounded-full border border-[var(--a-rule)] px-3 text-[12px] font-medium text-[var(--a-ink)] hover:border-[var(--a-accent)] cursor-pointer"
+                      >
+                        {prof.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-sans text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--a-muted)] mr-1">
+                      Transmit to:
+                    </span>
+                    {connectedPlatforms.map((pid) => {
+                      const checked = activeTargets.includes(pid);
+                      const handle = apiStatus?.[pid]?.handle;
+                      return (
+                        <button
+                          key={pid}
+                          type="button"
+                          onClick={() =>
+                            setSelectedTargets((prev) =>
+                              prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]
+                            )
+                          }
+                          className={`min-h-[32px] rounded-full border px-3 text-[13px] font-medium cursor-pointer transition-colors ${
+                            checked
+                              ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-white'
+                              : 'border-[var(--a-rule)] text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)]'
+                          }`}
+                        >
+                          {PLATFORM_SPECS[pid].shortName}
+                          {handle ? ` (${handle})` : ''}
+                        </button>
+                      );
+                    })}
+                    {hasNostr && (
+                      <button
+                        type="button"
+                        onClick={() => setIncludeNostr((v) => !v)}
                         className={`min-h-[32px] rounded-full border px-3 text-[13px] font-medium cursor-pointer transition-colors ${
-                          checked
+                          includeNostr
                             ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-white'
                             : 'border-[var(--a-rule)] text-[var(--a-muted)] hover:border-[var(--a-ink)] hover:text-[var(--a-ink)]'
                         }`}
                       >
-                        {PLATFORM_SPECS[pid].shortName}
-                        {handle ? ` (${handle})` : ''}
+                        Nostr
                       </button>
-                    );
-                  })}
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isPublishing || totalSelected === 0}
+                    onClick={async () => {
+                      if (activeTargets.length > 0) {
+                        await handleAutoPublishMany(activeTargets);
+                      }
+                      if (includeNostr && seedText.trim()) {
+                        await publishNostrNote(seedText.trim());
+                      }
+                    }}
+                    className="min-h-[36px] rounded-full border border-[var(--a-ink)] px-4 text-[13px] font-semibold text-[var(--a-ink)] hover:bg-[var(--a-ink)] hover:text-white disabled:opacity-40 cursor-pointer transition-colors"
+                  >
+                    {isPublishing
+                      ? 'Transmitting…'
+                      : `Publish to selected (${totalSelected}) →`}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={isPublishing || activeTargets.length === 0}
-                  onClick={() => handleAutoPublishMany(activeTargets)}
-                  className="min-h-[36px] rounded-full border border-[var(--a-ink)] px-4 text-[13px] font-semibold text-[var(--a-ink)] hover:bg-[var(--a-ink)] hover:text-white disabled:opacity-40 cursor-pointer transition-colors"
-                >
-                  {isPublishing
-                    ? 'Transmitting…'
-                    : `Publish to selected (${activeTargets.length}) →`}
-                </button>
               </div>
             );
           })()}

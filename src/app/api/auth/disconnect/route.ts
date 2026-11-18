@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { deletePlatformConnection, type OAuthPlatform } from '@/lib/oauth-connections';
 import { resolveWorkspaceOwner } from '@/lib/workspace-store';
 
-const ALLOWED: OAuthPlatform[] = ['threads', 'x', 'facebook', 'instagram'];
+const ALLOWED: OAuthPlatform[] = ['threads', 'x', 'facebook', 'instagram', 'nostr'];
 
 export async function POST(req: Request) {
   const owner = await resolveWorkspaceOwner();

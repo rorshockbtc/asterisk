@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { m, useReducedMotion } from 'framer-motion';
 import { AccentHairlineItem, AccentHairlineList, AccentInput, Eyebrow } from 'accent-ui';
 import { useStudio } from '@/components/studio/StudioContext';
 import { bloomHandlers } from '@/art/bloom';
 import { ART } from '@/lib/art-direction';
+import { connectNostrExtension } from '@/lib/nostr-client';
 import { PLATFORM_GUIDES, PLATFORM_ORDER, PLATFORM_SPECS } from '@/lib/platforms';
 
 type SetupStep = 'accounts' | 'handles' | 'publishing';
@@ -40,6 +41,20 @@ export default function CalmSetup() {
   const [draftCadences, setDraftCadences] = useState<Record<string, number>>({});
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [isFinishing, setIsFinishing] = useState(false);
+  const [nostrHandle, setNostrHandle] = useState<string | null>(null);
+  const [nostrError, setNostrError] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Array<{ id: number; name: string; platforms: string[] }>>([]);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [newProfilePlatforms, setNewProfilePlatforms] = useState<string[]>(['x', 'threads']);
+
+  useEffect(() => {
+    fetch('/api/profiles')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.profiles) setProfiles(d.profiles);
+      })
+      .catch(() => {});
+  }, []);
 
   const doneCount = checklist.filter((c) => c.completed).length;
   const firstIncompleteIdx = checklist.findIndex((c) => !c.completed);
@@ -502,7 +517,128 @@ export default function CalmSetup() {
                 </li>
               );
             })}
+            <li className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div>
+                <span className="font-display text-base font-bold text-[var(--a-ink)] block">
+                  Nostr (NIP-07)
+                </span>
+                <span
+                  className={`text-[13px] ${
+                    nostrHandle ? 'text-[var(--a-emerald)] font-medium' : 'text-[var(--a-muted)]'
+                  }`}
+                >
+                  {nostrError
+                    ? nostrError
+                    : nostrHandle
+                      ? `Connected: ${nostrHandle}`
+                      : 'Sign & publish via Alby, nos2x, or Flamingo browser extension'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setNostrError(null);
+                  const res = await connectNostrExtension();
+                  if (res.ok && res.handle) {
+                    setNostrHandle(res.handle);
+                  } else if (res.error) {
+                    setNostrError(res.error);
+                  }
+                }}
+                className="inline-flex min-h-[38px] items-center rounded-full bg-[var(--a-ink)] px-4 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer"
+              >
+                {nostrHandle ? 'Reconnect Nostr' : 'Connect Nostr'}
+              </button>
+            </li>
           </ul>
+
+          {/* Publishing Profiles (Collections: Personal, Business, Product, etc.) */}
+          <div className="rounded-2xl border border-[var(--a-rule)] bg-[var(--a-surface)] p-5 space-y-4">
+            <div>
+              <h3 className="font-display text-base font-bold text-[var(--a-ink)]">
+                Publishing Profiles (Collections)
+              </h3>
+              <p className="text-[13px] text-[var(--a-muted)]">
+                Group channels into presets like Personal, Business, or Product so you can switch audiences in 1 click.
+              </p>
+            </div>
+
+            {profiles.length > 0 && (
+              <div className="divide-y divide-[var(--a-rule)] border-y border-[var(--a-rule)]">
+                {profiles.map((prof) => (
+                  <div key={prof.id} className="flex items-center justify-between gap-3 py-2.5 text-[14px]">
+                    <div>
+                      <span className="font-semibold text-[var(--a-ink)]">{prof.name}</span>
+                      <span className="ml-2 text-[12px] text-[var(--a-muted)]">
+                        ({prof.platforms.join(', ') || 'no channels'})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch(`/api/profiles?id=${prof.id}`, { method: 'DELETE' });
+                        setProfiles((prev) => prev.filter((p) => p.id !== prof.id));
+                      }}
+                      className="text-[12px] text-[var(--a-muted)] hover:text-red-600 cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={newProfileName}
+                onChange={(e) => setNewProfileName(e.target.value)}
+                placeholder="Profile name (e.g. Business)"
+                className="min-h-[38px] rounded-xl border border-[var(--a-rule)] bg-[var(--a-bg)] px-3 text-[13px] text-[var(--a-ink)]"
+              />
+              {(['x', 'threads', 'facebook', 'instagram', 'nostr'] as const).map((pid) => {
+                const active = newProfilePlatforms.includes(pid);
+                return (
+                  <button
+                    key={pid}
+                    type="button"
+                    onClick={() =>
+                      setNewProfilePlatforms((prev) =>
+                        prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]
+                      )
+                    }
+                    className={`min-h-[32px] rounded-full border px-3 text-[12px] font-medium cursor-pointer ${
+                      active
+                        ? 'border-[var(--a-ink)] bg-[var(--a-ink)] text-white'
+                        : 'border-[var(--a-rule)] text-[var(--a-muted)]'
+                    }`}
+                  >
+                    {pid}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={async () => {
+                  const name = newProfileName.trim();
+                  if (!name) return;
+                  const res = await fetch('/api/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, platforms: newProfilePlatforms }),
+                  });
+                  const data = await res.json();
+                  if (data?.profile) {
+                    setProfiles((prev) => [...prev, data.profile]);
+                    setNewProfileName('');
+                  }
+                }}
+                className="min-h-[38px] rounded-full bg-[var(--a-ink)] px-4 text-[13px] font-semibold text-white cursor-pointer"
+              >
+                + Add Profile
+              </button>
+            </div>
+          </div>
 
           <details className="border-t border-[var(--a-rule)] pt-4">
             <summary className="min-h-[44px] inline-flex items-center cursor-pointer text-[14px] font-medium text-[var(--a-muted)] hover:text-[var(--a-ink)]">

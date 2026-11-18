@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 import type { PlatformId } from './platforms';
 
-export type OAuthPlatform = Extract<PlatformId, 'threads' | 'x' | 'facebook' | 'instagram'>;
+export type OAuthPlatform = Extract<PlatformId, 'threads' | 'x' | 'facebook' | 'instagram'> | 'nostr';
 
 export interface PlatformConnectionRecord {
   owner_key: string;
@@ -197,6 +197,7 @@ export async function listPlatformConnections(
     x: { platform: 'x', connected: false, accountHandle: null, accountId: null, expiresAt: null, updatedAt: null },
     facebook: { platform: 'facebook', connected: false, accountHandle: null, accountId: null, expiresAt: null, updatedAt: null },
     instagram: { platform: 'instagram', connected: false, accountHandle: null, accountId: null, expiresAt: null, updatedAt: null },
+    nostr: { platform: 'nostr', connected: false, accountHandle: null, accountId: null, expiresAt: null, updatedAt: null },
   };
 
   if (!process.env.DATABASE_URL) return empty;
