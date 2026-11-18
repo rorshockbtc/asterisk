@@ -72,12 +72,15 @@ export async function GET(req: Request) {
     }>;
   };
 
-  const firstPage = pagesJson.data?.[0];
+  const pages = pagesJson.data ?? [];
+  const firstPage = pages[0];
   if (!firstPage) {
     return NextResponse.redirect(
       new URL('/app/setup?tab=publishing&oauth_error=no_facebook_page_found', origin)
     );
   }
+
+  const igPage = pages.find((p) => p.instagram_business_account?.id);
 
   await upsertPlatformConnection({
     ownerKey: owner.ownerKey,
@@ -87,15 +90,15 @@ export async function GET(req: Request) {
     accountHandle: firstPage.name,
   });
 
-  if (firstPage.instagram_business_account?.id) {
+  if (igPage?.instagram_business_account?.id) {
     await upsertPlatformConnection({
       ownerKey: owner.ownerKey,
       platform: 'instagram',
-      accessToken: firstPage.access_token,
-      accountId: firstPage.instagram_business_account.id,
-      accountHandle: firstPage.instagram_business_account.username
-        ? `@${firstPage.instagram_business_account.username}`
-        : firstPage.name,
+      accessToken: igPage.access_token,
+      accountId: igPage.instagram_business_account.id,
+      accountHandle: igPage.instagram_business_account.username
+        ? `@${igPage.instagram_business_account.username}`
+        : igPage.name,
     });
   }
 
