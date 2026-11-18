@@ -23,6 +23,7 @@ export interface PublicPlatformConnection {
   accountId: string | null;
   expiresAt: string | null;
   updatedAt: string | null;
+  picture?: string | null;
   pages?: Array<{ id: string; name: string; instagramHandle?: string | null }>;
 }
 
@@ -215,6 +216,7 @@ export async function listPlatformConnections(
     expires_at: string | null;
     updated_at: string;
     meta_json: {
+      picture?: string;
       pages?: Array<{
         id: string;
         name: string;
@@ -232,6 +234,7 @@ export async function listPlatformConnections(
         accountId: row.account_id,
         expiresAt: row.expires_at,
         updatedAt: row.updated_at,
+        picture: row.meta_json?.picture ?? null,
         pages: row.meta_json?.pages?.map((p) => ({
           id: p.id,
           name: p.name,

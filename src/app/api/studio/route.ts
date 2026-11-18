@@ -28,6 +28,12 @@ export async function GET() {
       ...workspace,
       connections,
       apiStatus: getApiConnectionStatus(connections),
+      nostrStatus: {
+        connected: connections.nostr.connected,
+        handle: connections.nostr.accountHandle,
+        pubkey: connections.nostr.accountId,
+        picture: connections.nostr.picture ?? null,
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load workspace';

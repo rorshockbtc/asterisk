@@ -24,6 +24,8 @@ import type {
   ApiStatusMap,
   BroadcastRecord,
   ChecklistStep,
+  FlightReceiptItem,
+  NostrConnectionStatus,
   PlatformSetting,
   StudioHydrationPayload,
   VariantRecord,
@@ -57,6 +59,7 @@ interface StudioContextValue {
   checklist: ChecklistStep[];
   platformSettings: PlatformSetting[];
   apiStatus: ApiStatusMap | null;
+  nostrStatus: NostrConnectionStatus | null;
   pipesSession: PipesSessionPayload | null;
   selectedId: number | null;
   activePlatform: PlatformId;
@@ -92,6 +95,9 @@ interface StudioContextValue {
   setStatusMessage: (msg: string) => void;
   statusLinks: StatusLink[];
   setStatusLinks: (links: StatusLink[]) => void;
+  flightReceipts: FlightReceiptItem[];
+  setFlightReceipts: React.Dispatch<React.SetStateAction<FlightReceiptItem[]>>;
+  refreshStudio: (keepSelectionId?: number | null) => Promise<void>;
   handleNewNote: () => void;
   handleHydrateBroadcast: (b: BroadcastRecord) => void;
   handleSaveDraft: () => Promise<number | null>;
@@ -101,7 +107,7 @@ interface StudioContextValue {
   handleCopyReplyOnly: (p: PlatformId) => Promise<void>;
   handleCopyAndLog: (p: PlatformId, openTab: boolean) => Promise<boolean>;
   handleAutoPublish: (p: PlatformId) => Promise<boolean>;
-  handleAutoPublishMany: (platforms: PlatformId[]) => Promise<void>;
+  handleAutoPublishMany: (platforms: PlatformId[]) => Promise<FlightReceiptItem[]>;
   handleToggleChecklist: (step: ChecklistStep) => Promise<void>;
   handleSavePlatformSetting: (p: PlatformId, handle: string, cadenceDays: number) => Promise<void>;
 }
@@ -120,6 +126,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [checklist, setChecklist] = useState<ChecklistStep[]>([]);
   const [platformSettings, setPlatformSettings] = useState<PlatformSetting[]>([]);
   const [apiStatus, setApiStatus] = useState<ApiStatusMap | null>(null);
+  const [nostrStatus, setNostrStatus] = useState<NostrConnectionStatus | null>(null);
   const [pipesSession, setPipesSession] = useState<PipesSessionPayload | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -139,6 +146,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [isPublishingPipe, setIsPublishingPipe] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [statusLinks, setStatusLinks] = useState<StatusLink[]>([]);
+  const [flightReceipts, setFlightReceipts] = useState<FlightReceiptItem[]>([]);
 
   const handleHydrateBroadcast = useCallback((b: BroadcastRecord) => {
     setSelectedId(b.id);
@@ -150,6 +158,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       Array.isArray(b.media_attachments) ? b.media_attachments.slice(0, MAX_MEDIA_IMAGES) : []
     );
     setInboundSource(null);
+    setFlightReceipts([]);
 
     const next = buildEmptyVariants();
     const customFlags: Partial<Record<PlatformId, boolean>> = {};
@@ -175,6 +184,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setChecklist(data.setupChecklist || []);
       setPlatformSettings(data.platformSettings || []);
       setApiStatus(data.apiStatus || null);
+      setNostrStatus(data.nostrStatus ?? null);
 
       if (keepSelectionId !== undefined && keepSelectionId !== null) {
         const found = (data.broadcasts || []).find((b) => b.id === keepSelectionId);
@@ -195,6 +205,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         setChecklist(data.setupChecklist || []);
         setPlatformSettings(data.platformSettings || []);
         setApiStatus(data.apiStatus || null);
+        setNostrStatus(data.nostrStatus ?? null);
       })
       .catch(() => {});
 
@@ -295,6 +306,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     setInboundSource(null);
     setVariants(buildEmptyVariants());
     setCustomized({});
+    setFlightReceipts([]);
     setStatusLinks([]);
     setStatusMessage('Blank page ready.');
   }, []);
@@ -590,7 +602,22 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         });
         const data = await res.json();
         await refreshStudio(broadcastId);
-        setStatusLinks([]);
+        setFlightReceipts([
+          {
+            key: p,
+            label: PLATFORM_SPECS[p].shortName,
+            ok: Boolean(data.ok),
+            mode: 'api',
+            detail: data.message || (data.ok ? 'Published' : 'Failed'),
+            externalUrl: data.externalUrl,
+            composeUrl: PLATFORM_SPECS[p].composeUrl,
+          },
+        ]);
+        setStatusLinks(
+          data.externalUrl
+            ? [{ label: `View on ${PLATFORM_SPECS[p].shortName} ↗`, href: data.externalUrl }]
+            : []
+        );
         setStatusMessage(data.message || 'Publish check completed.');
         return Boolean(data.ok);
       } catch (err) {
@@ -605,18 +632,27 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   const handleAutoPublishMany = useCallback(
-    async (platforms: PlatformId[]) => {
-      if (platforms.length === 0 || isPublishing) return;
+    async (platforms: PlatformId[]): Promise<FlightReceiptItem[]> => {
+      if (platforms.length === 0 || isPublishing) return [];
       setIsPublishing(true);
       try {
         const broadcastId = await saveBroadcastInternal();
-        if (!broadcastId) return;
+        if (!broadcastId) return [];
 
-        const results = await Promise.all(
+        const receipts: FlightReceiptItem[] = await Promise.all(
           platforms.map(async (p) => {
             const cur = variants[p];
             const bodyText = cur?.body_text?.trim() || '';
-            if (!bodyText) return `${PLATFORM_SPECS[p].shortName}: empty`;
+            if (!bodyText) {
+              return {
+                key: p,
+                label: PLATFORM_SPECS[p].shortName,
+                ok: false,
+                mode: 'api',
+                detail: 'Empty draft',
+                composeUrl: PLATFORM_SPECS[p].composeUrl,
+              };
+            }
             const res = await fetch('/api/publish', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -629,15 +665,33 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
               }),
             });
             const data = await res.json();
-            return `${PLATFORM_SPECS[p].shortName}: ${data.ok ? 'published' : data.message || 'failed'}`;
+            return {
+              key: p,
+              label: PLATFORM_SPECS[p].shortName,
+              ok: Boolean(data.ok),
+              mode: 'api',
+              detail: data.message || (data.ok ? 'Published' : 'Failed'),
+              externalUrl: data.externalUrl,
+              composeUrl: PLATFORM_SPECS[p].composeUrl,
+            };
           })
         );
         await refreshStudio(broadcastId);
-        setStatusLinks([]);
-        setStatusMessage(results.join(' · '));
+        setFlightReceipts(receipts);
+        const links: StatusLink[] = receipts
+          .filter((r) => r.ok && r.externalUrl)
+          .map((r) => ({ label: `View on ${r.label} ↗`, href: r.externalUrl! }));
+        setStatusLinks(links);
+        setStatusMessage(
+          receipts
+            .map((r) => `${r.label}: ${r.ok ? 'published' : r.detail}`)
+            .join(' · ')
+        );
+        return receipts;
       } catch (err) {
         setStatusLinks([]);
         setStatusMessage(err instanceof Error ? err.message : 'Batch publish error');
+        return [];
       } finally {
         setIsPublishing(false);
       }
@@ -680,6 +734,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         checklist,
         platformSettings,
         apiStatus,
+        nostrStatus,
         pipesSession,
         selectedId,
         activePlatform,
@@ -710,6 +765,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         setStatusMessage,
         statusLinks,
         setStatusLinks,
+        flightReceipts,
+        setFlightReceipts,
+        refreshStudio,
         handleNewNote,
         handleHydrateBroadcast,
         handleSaveDraft,

@@ -66,7 +66,7 @@ export default function StudioShell({ children }: { children: React.ReactNode })
     <div className="min-h-screen w-full max-w-full overflow-x-clip flex flex-col bg-[var(--a-bg)] text-[var(--a-ink)]">
       {/* Compact single-row persistent header — fits cleanly inside 390px mobile viewports */}
       <header className="sticky top-0 z-40 border-b border-[var(--a-rule)] bg-[var(--a-bg)]/92 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-2 sm:gap-x-4 gap-y-1 px-4 sm:px-8 lg:px-10 py-2 sm:py-0 sm:h-16">
+        <div className="mx-auto flex max-w-[1360px] flex-wrap items-center justify-between gap-x-2 sm:gap-x-4 gap-y-1 px-5 sm:px-8 lg:px-12 py-2 sm:py-0 sm:h-16">
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/app"
@@ -207,20 +207,15 @@ export default function StudioShell({ children }: { children: React.ReactNode })
               <Link
                 key={item.href}
                 href={item.href}
+                data-active={item.active ? 'true' : undefined}
                 aria-current={item.active ? 'page' : undefined}
-                className={`relative inline-flex min-h-[44px] items-center px-0.5 text-sm font-medium whitespace-nowrap no-underline t-color ${
+                className={`wc-link relative inline-flex min-h-[44px] items-center px-0.5 text-sm font-medium whitespace-nowrap t-color ${
                   item.active
-                    ? 'text-[var(--a-ink)]'
-                    : 'text-[var(--a-muted)] hover:text-[var(--a-ink)]'
+                    ? 'font-semibold text-[var(--a-accent-text)]'
+                    : 'text-[var(--a-ink)]'
                 }`}
               >
                 <span>{item.label}</span>
-                {item.active && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--a-accent)]"
-                  />
-                )}
               </Link>
             ))}
           </nav>
@@ -228,9 +223,9 @@ export default function StudioShell({ children }: { children: React.ReactNode })
       </header>
 
       {/* Live status feedback + action links back to Hash / Personal Pipe */}
-      <div role="status" aria-live="polite" className="mx-auto w-full max-w-6xl px-4 sm:px-8 lg:px-10">
+      <div role="status" aria-live="polite" className="relative z-10 mx-auto w-full max-w-[1360px] px-5 sm:px-8 lg:px-12">
         {statusMessage ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-l-2 border-[var(--a-accent)] bg-[var(--a-surface)] px-4 py-2 text-[14px] text-[var(--a-ink)]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--a-rule)] border-l-2 border-l-[var(--a-accent)] bg-[var(--a-surface)]/90 px-4 py-2 text-[14px] text-[var(--a-ink)]">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>{statusMessage}</span>
               {statusLinks.map((lnk) => (

@@ -49,10 +49,28 @@ export type ApiStatusMap = Record<
   }
 >;
 
+export interface NostrConnectionStatus {
+  connected: boolean;
+  handle: string | null;
+  pubkey: string | null;
+  picture?: string | null;
+}
+
+export interface FlightReceiptItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  mode: 'api' | 'copy' | 'nostr';
+  detail: string;
+  externalUrl?: string;
+  composeUrl?: string;
+}
+
 export interface StudioHydrationPayload {
   broadcasts: BroadcastRecord[];
   cadence: CadenceStatus[];
   setupChecklist: ChecklistStep[];
   platformSettings: PlatformSetting[];
   apiStatus: ApiStatusMap | null;
+  nostrStatus?: NostrConnectionStatus | null;
 }
